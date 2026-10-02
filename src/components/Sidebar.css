@@ -1,0 +1,102 @@
+.sidebar {
+  width: 260px;
+  min-height: 100vh;
+  background: var(--primary-deep);
+  color: #E0E7FF;
+  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 6px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.brand-icon {
+  font-size: 1.8rem;
+  background: rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+.brand-title { font-size: 0.95rem; font-weight: 700; color: #E0E7FF; }
+.brand-sub   { font-size: 0.7rem;  color: rgba(224,231,255,0.5); margin-top: 2px; }
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  color: rgba(224,231,255,0.78);
+  font-weight: 500;
+  transition: background 0.15s;
+}
+.nav-link:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.nav-link.active {
+  background: linear-gradient(135deg, rgba(109,40,217,0.55), rgba(55,48,163,0.55));
+  color: #fff;
+  font-weight: 600;
+}
+.nav-icon { font-size: 1rem; }
+
+.sidebar-section {
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.section-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: rgba(224,231,255,0.5);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.sidebar .field label  { color: rgba(224,231,255,0.65); }
+.sidebar .field input[type="text"],
+.sidebar .field input[type="number"] {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
+.sidebar .field input:focus { border-color: #A78BFA; }
+
+.pill {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255,255,255,0.07);
+  border-radius: 8px;
+  padding: 7px 10px;
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+}
+.pill span   { color: rgba(224,231,255,0.7); }
+.pill strong { color: #E0E7FF; font-weight: 700; }
+
+.empty-sub {
+  color: rgba(224,231,255,0.4);
+  font-size: 0.82rem;
+  text-align: center;
+  padding: 6px 0;
+}
+
+@media (max-width: 768px) {
+  .sidebar { width: 100%; min-height: auto; position: static; }
+}
