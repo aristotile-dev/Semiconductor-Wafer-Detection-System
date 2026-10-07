@@ -25,7 +25,7 @@ Give expert analysis with exactly 4 sections:
 Keep each section to 1-2 lines. Be technical and precise."""
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         max_tokens=400,
         messages=[{"role": "user", "content": prompt}]
     )
