@@ -6,8 +6,8 @@ import {
 } from "recharts";
 import { getMyHistory, HistoryEntry } from "../api/client";
 
-const COLORS = ["#6D28D9", "#10B981", "#F59E0B", "#EF4444", "#3B82F6", "#EC4899", "#14B8A6", "#F97316", "#8B5CF6"];
-const DECISION_COLORS: Record<string, string> = { SAVE: "#10B981", REVIEW: "#F59E0B", SCRAP: "#EF4444" };
+const COLORS = ["#c6ff3d", "#c6ff3d", "#ffd23d", "#ff2e93", "#7aa2ff", "#ff2e93", "#5eead4", "#ffd23d", "#c6ff3d"];
+const DECISION_COLORS: Record<string, string> = { SAVE: "#c6ff3d", REVIEW: "#ffd23d", SCRAP: "#ff2e93" };
 
 export default function Reports() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -17,7 +17,7 @@ export default function Reports() {
     getMyHistory().then(data => { setHistory(data); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="card"><p style={{ color: "#64748B" }}>Loading reports…</p></div>;
+  if (loading) return <div className="card"><p style={{ color: "#9a9aa8" }}>Loading reports…</p></div>;
 
   if (history.length === 0) return (
     <>
@@ -63,33 +63,33 @@ export default function Reports() {
         <head>
           <title>Wafer Defect Report</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 32px; color: #1E293B; }
-            h1 { color: #1E1B4B; font-size: 1.5rem; margin-bottom: 4px; }
-            h2 { color: #3730A3; font-size: 1rem; margin: 24px 0 8px; border-bottom: 2px solid #E2E8F0; padding-bottom: 4px; }
+            body { font-family: Arial, sans-serif; padding: 32px; color: #f4f4f0; }
+            h1 { color: #14141b; font-size: 1.5rem; margin-bottom: 4px; }
+            h2 { color: #f4f4f0; font-size: 1rem; margin: 24px 0 8px; border-bottom: 2px solid #ffffff2e; padding-bottom: 4px; }
             .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 16px 0; }
-            .stat { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; text-align: center; }
-            .stat-label { font-size: 0.7rem; color: #64748B; text-transform: uppercase; }
-            .stat-value { font-size: 1.5rem; font-weight: 800; color: #1E1B4B; }
+            .stat { background: #1b1b25; border: 1px solid #ffffff2e; border-radius: 8px; padding: 12px; text-align: center; }
+            .stat-label { font-size: 0.7rem; color: #9a9aa8; text-transform: uppercase; }
+            .stat-value { font-size: 1.5rem; font-weight: 800; color: #14141b; }
             table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 8px; }
-            th { background: #F1F5F9; padding: 8px 10px; text-align: left; font-size: 0.72rem; text-transform: uppercase; color: #64748B; }
-            td { padding: 8px 10px; border-bottom: 1px solid #E2E8F0; }
-            .save { color: #065F46; background: #D1FAE5; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
-            .review { color: #92400E; background: #FEF3C7; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
-            .scrap { color: #991B1B; background: #FEE2E2; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
-            footer { margin-top: 32px; color: #94A3B8; font-size: 0.75rem; text-align: center; }
+            th { background: #1b1b25; padding: 8px 10px; text-align: left; font-size: 0.72rem; text-transform: uppercase; color: #9a9aa8; }
+            td { padding: 8px 10px; border-bottom: 1px solid #ffffff2e; }
+            .save { color: #c6ff3d; background: #1b1b25; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+            .review { color: #ffd23d; background: #1b1b25; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+            .scrap { color: #ff2e93; background: #1b1b25; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+            footer { margin-top: 32px; color: #9a9aa8; font-size: 0.75rem; text-align: center; }
           </style>
         </head>
         <body>
-          <h1>🔬 Wafer Defect Detection — Report</h1>
-          <p style="color:#64748B;font-size:0.85rem;">Generated on ${new Date().toLocaleString()}</p>
+          <h1>Wafer Defect Detection — Report</h1>
+          <p style="color:#9a9aa8;font-size:0.85rem;">Generated on ${new Date().toLocaleString()}</p>
           <h2>Summary</h2>
           <div class="stats">
             <div class="stat"><div class="stat-label">Total Predictions</div><div class="stat-value">${total}</div></div>
             <div class="stat"><div class="stat-label">Avg Yield</div><div class="stat-value">${avgYield}%</div></div>
             <div class="stat"><div class="stat-label">Avg Confidence</div><div class="stat-value">${avgConf}%</div></div>
-            <div class="stat"><div class="stat-label">✅ Save</div><div class="stat-value" style="color:#10B981">${saves}</div></div>
-            <div class="stat"><div class="stat-label">⚠️ Review</div><div class="stat-value" style="color:#F59E0B">${reviews}</div></div>
-            <div class="stat"><div class="stat-label">❌ Scrap</div><div class="stat-value" style="color:#EF4444">${scraps}</div></div>
+            <div class="stat"><div class="stat-label">Save</div><div class="stat-value" style="color:#c6ff3d">${saves}</div></div>
+            <div class="stat"><div class="stat-label">Review</div><div class="stat-value" style="color:#ffd23d">${reviews}</div></div>
+            <div class="stat"><div class="stat-label">Scrap</div><div class="stat-value" style="color:#ff2e93">${scraps}</div></div>
           </div>
           <h2>Defect Distribution</h2>
           <table>
@@ -124,7 +124,7 @@ export default function Reports() {
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
         <button className="btn btn-primary" onClick={handleExportPDF} style={{ fontSize: "0.85rem" }}>
-          📄 Export PDF Report
+          Export PDF Report
         </button>
       </div>
 
@@ -132,12 +132,12 @@ export default function Reports() {
         {/* Summary cards */}
         <div className="metric-grid" style={{ gridTemplateColumns: "repeat(6, 1fr)", marginBottom: 16 }}>
           {[
-            { label: "Total", value: total, color: "#6D28D9" },
-            { label: "Avg Yield", value: `${avgYield}%`, color: "#1E293B" },
-            { label: "Avg Conf", value: `${avgConf}%`, color: "#1E293B" },
-            { label: "✅ Save", value: saves, color: "#10B981" },
-            { label: "⚠️ Review", value: reviews, color: "#F59E0B" },
-            { label: "❌ Scrap", value: scraps, color: "#EF4444" },
+            { label: "Total", value: total, color: "#c6ff3d" },
+            { label: "Avg Yield", value: `${avgYield}%`, color: "#f4f4f0" },
+            { label: "Avg Conf", value: `${avgConf}%`, color: "#f4f4f0" },
+            { label: "Save", value: saves, color: "#c6ff3d" },
+            { label: "Review", value: reviews, color: "#ffd23d" },
+            { label: "Scrap", value: scraps, color: "#ff2e93" },
           ].map((s, i) => (
             <div key={i} className="metric-card">
               <div className="m-label">{s.label}</div>
@@ -152,9 +152,9 @@ export default function Reports() {
             <div className="card-title">Defect Distribution</div>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={defectData} margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#64748B" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#64748B" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff2e" />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#9a9aa8" }} />
+                <YAxis tick={{ fontSize: 10, fill: "#9a9aa8" }} />
                 <Tooltip />
                 <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                   {defectData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
@@ -183,11 +183,11 @@ export default function Reports() {
           <div className="card-title">Yield Trend (Last {yieldTrend.length} Predictions)</div>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={yieldTrend} margin={{ top: 4, right: 20, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis dataKey="index" tick={{ fontSize: 10, fill: "#64748B" }} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#64748B" }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff2e" />
+              <XAxis dataKey="index" tick={{ fontSize: 10, fill: "#9a9aa8" }} />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#9a9aa8" }} />
               <Tooltip formatter={(v: number) => `${v}%`} />
-              <Line type="monotone" dataKey="yield" stroke="#6D28D9" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="yield" stroke="#c6ff3d" strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -216,7 +216,7 @@ export default function Reports() {
                         {h.decision}
                       </span>
                     </td>
-                    <td style={{ fontSize: "0.75rem", color: "#64748B" }}>
+                    <td style={{ fontSize: "0.75rem", color: "#9a9aa8" }}>
                       {new Date(h.timestamp).toLocaleString()}
                     </td>
                   </tr>

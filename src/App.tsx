@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { lazy, Suspense, useState, useEffect } from "react";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Prediction from "./pages/Prediction";
 import BatchPrediction from "./pages/BatchPrediction";
@@ -7,6 +7,9 @@ import DrawMode from "./pages/DrawMode";
 import YieldAnalysis from "./pages/YieldAnalysis";
 import History from "./pages/History";
 import Login from "./pages/Login";
+import RequestAccess from "./pages/RequestAccess";
+import Scan from "./pages/Scan";
+const Landing = lazy(() => import("./pages/Landing"));
 import UserManagement from "./pages/UserManagement";
 import Reports from "./pages/Reports";
 import type { User } from "./api/client";
@@ -20,7 +23,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 function AdminGuard({ children }: { children: React.ReactNode }) {
   const raw  = localStorage.getItem("wafer_user");
   const user: User | null = raw ? JSON.parse(raw) : null;
-  if (!user || user.role !== "admin") return <Navigate to="/" replace />;
+  if (!user || user.role !== "admin") return <Navigate to="/app" replace />;
   return <>{children}</>;
 }
 
@@ -29,25 +32,31 @@ export default function App() {
   const [dieArea, setDieArea] = useState(0.5);
   const [user, setUser]       = useState<User | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
+  // Re-read the signed-in user on every navigation, so signing in (or out) shows up straight away.
   useEffect(() => {
     const raw = localStorage.getItem("wafer_user");
-    if (raw) setUser(JSON.parse(raw));
-  }, []);
+    setUser(raw ? JSON.parse(raw) : null);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem("wafer_token");
     localStorage.removeItem("wafer_user");
     setUser(null);
-    navigate("/login");
+    navigate("/");
   };
 
   const token = localStorage.getItem("wafer_token");
 
   return (
+    <Suspense fallback={null}>
     <Routes>
-      <Route path="/login" element={token ? <Navigate to="/" replace /> : <Login />} />
-      <Route path="/*" element={
+      <Route path="/" element={<Landing />} />
+      <Route path="/scan" element={<Scan />} />
+      <Route path="/request" element={<RequestAccess />} />
+      <Route path="/login" element={token ? <Navigate to="/app" replace /> : <Login />} />
+      <Route path="/app/*" element={
         <AuthGuard>
           <div className="app-shell">
             <Sidebar
@@ -61,19 +70,19 @@ export default function App() {
             <main className="main-area">
               <Routes>
                 <Route path="/"        element={<Prediction waferId={waferId} dieArea={dieArea} />} />
-                <Route path="/batch"   element={<BatchPrediction dieArea={dieArea} />} />
-                <Route path="/draw"    element={<DrawMode waferId={waferId} dieArea={dieArea} />} />
-                <Route path="/yield"   element={<YieldAnalysis dieArea={dieArea} />} />
-                <Route path="/history" element={<History />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/users"   element={
-                  <AdminGuard><UserManagement /></AdminGuard>
-                } />
+                <Route path="batch"    element={<BatchPrediction dieArea={dieArea} />} />
+                <Route path="draw"     element={<DrawMode waferId={waferId} dieArea={dieArea} />} />
+                <Route path="yield"    element={<YieldAnalysis dieArea={dieArea} />} />
+                <Route path="history"  element={<History />} />
+                <Route path="reports"  element={<Reports />} />
+                <Route path="users"    element={<AdminGuard><UserManagement /></AdminGuard>} />
               </Routes>
             </main>
           </div>
         </AuthGuard>
       } />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }

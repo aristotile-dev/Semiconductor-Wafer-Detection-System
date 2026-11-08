@@ -7,8 +7,8 @@ import PageHeader from "../components/PageHeader";
 import { getMyHistory, adminGetUsers, adminGetUserHistory, HistoryEntry } from "../api/client";
 import type { User } from "../api/client";
 
-const PURPLE_PALETTE = ["#6D28D9","#3730A3","#7C3AED","#A78BFA","#C4B5FD","#DDD6FE","#EDE9FE","#F5F3FF","#8B5CF6"];
-const DECISION_COLORS: Record<string, string> = { SAVE: "#10B981", REVIEW: "#F59E0B", SCRAP: "#EF4444" };
+const PURPLE_PALETTE = ["#c6ff3d","#f4f4f0","#c6ff3d","#d6ff6b","#d6ff6b","#ffffff2e","#1b1b25","#1b1b25","#c6ff3d"];
+const DECISION_COLORS: Record<string, string> = { SAVE: "#c6ff3d", REVIEW: "#ffd23d", SCRAP: "#ff2e93" };
 
 export default function History() {
   const rawUser = localStorage.getItem("wafer_user");
@@ -93,17 +93,17 @@ export default function History() {
       {/* Admin user selector */}
       {isAdmin && (
         <div className="card" style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#64748B", whiteSpace: "nowrap" }}>
-            👤 View history for:
+          <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#9a9aa8", whiteSpace: "nowrap" }}>
+            View history for:
           </div>
           <select
             value={selectedUserId ?? ""}
             onChange={handleUserSelect}
             style={{
               flex: 1, padding: "10px 14px",
-              border: "1px solid #E2E8F0", borderRadius: 10,
-              fontSize: "0.88rem", color: "#1E293B",
-              background: "#F8FAFC", outline: "none", cursor: "pointer"
+              border: "1px solid #ffffff2e", borderRadius: 10,
+              fontSize: "0.88rem", color: "#f4f4f0",
+              background: "#1b1b25", outline: "none", cursor: "pointer"
             }}
           >
             <option value="" disabled>— Select a user —</option>
@@ -119,7 +119,7 @@ export default function History() {
               style={{ fontSize: "0.78rem", padding: "8px 14px", whiteSpace: "nowrap" }}
               onClick={() => { setSelectedUserId(null); setSelectedUserName(""); setHistory([]); }}
             >
-              ✕ Clear
+              Clear
             </button>
           )}
         </div>
@@ -127,7 +127,7 @@ export default function History() {
 
       {/* Loading */}
       {loading && (
-        <div className="card"><p style={{ color: "#64748B", fontSize: "0.85rem" }}>Loading history…</p></div>
+        <div className="card"><p style={{ color: "#9a9aa8", fontSize: "0.85rem" }}>Loading history…</p></div>
       )}
 
       {/* Empty state */}
@@ -160,7 +160,7 @@ export default function History() {
               <tbody>
                 {history.map((h, i) => (
                   <tr key={i}>
-                    <td style={{ fontFamily: "monospace", fontSize: "0.78rem", color: "#64748B" }}>
+                    <td style={{ fontFamily: "monospace", fontSize: "0.78rem", color: "#9a9aa8" }}>
                       {new Date(h.timestamp).toLocaleString()}
                     </td>
                     <td><strong>{h.wafer_id}</strong></td>
@@ -175,7 +175,7 @@ export default function History() {
           </div>
 
           <div className="mt-2">
-            <button className="btn btn-ghost" onClick={downloadCsv}>⬇️ Download CSV</button>
+            <button className="btn btn-ghost" onClick={downloadCsv}>Download CSV</button>
           </div>
 
           <div className="grid-2 grid-2-even mt-3">
@@ -188,7 +188,7 @@ export default function History() {
                          labelLine={false} label={(e: any) => `${e.name} ${(e.percent * 100).toFixed(0)}%`}>
                       {pieData.map((_, i) => <Cell key={i} fill={PURPLE_PALETTE[i % PURPLE_PALETTE.length]} />)}
                     </Pie>
-                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }} />
+                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #ffffff2e", fontSize: 12 }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -199,12 +199,12 @@ export default function History() {
               <div style={{ width: "100%", height: 260 }}>
                 <ResponsiveContainer>
                   <BarChart data={decData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                    <XAxis dataKey="decision" tick={{ fontSize: 12, fill: "#334155" }} />
-                    <YAxis tick={{ fontSize: 11, fill: "#64748B" }} />
-                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff2e" />
+                    <XAxis dataKey="decision" tick={{ fontSize: 12, fill: "#ffffff2e" }} />
+                    <YAxis tick={{ fontSize: 11, fill: "#9a9aa8" }} />
+                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #ffffff2e", fontSize: 12 }} />
                     <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                      {decData.map((d, i) => <Cell key={i} fill={DECISION_COLORS[d.decision] || "#94A3B8"} />)}
+                      {decData.map((d, i) => <Cell key={i} fill={DECISION_COLORS[d.decision] || "#9a9aa8"} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -217,14 +217,14 @@ export default function History() {
             <div style={{ width: "100%", height: 240 }}>
               <ResponsiveContainer>
                 <LineChart data={trendData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                  <XAxis dataKey="idx" tick={{ fontSize: 11, fill: "#64748B" }}
-                    label={{ value: "Prediction #", position: "insideBottom", offset: -2, fontSize: 11, fill: "#64748B" }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#64748B" }} />
-                  <Tooltip formatter={(v: number) => `${v}%`} contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }} />
-                  <ReferenceLine y={70} stroke="#10B981" strokeDasharray="4 4" />
-                  <ReferenceLine y={40} stroke="#F59E0B" strokeDasharray="4 4" />
-                  <Line type="monotone" dataKey="yieldPct" stroke="#6D28D9" strokeWidth={2.5} dot={{ r: 4, fill: "#6D28D9" }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff2e" />
+                  <XAxis dataKey="idx" tick={{ fontSize: 11, fill: "#9a9aa8" }}
+                    label={{ value: "Prediction #", position: "insideBottom", offset: -2, fontSize: 11, fill: "#9a9aa8" }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#9a9aa8" }} />
+                  <Tooltip formatter={(v: number) => `${v}%`} contentStyle={{ borderRadius: 8, border: "1px solid #ffffff2e", fontSize: 12 }} />
+                  <ReferenceLine y={70} stroke="#c6ff3d" strokeDasharray="4 4" />
+                  <ReferenceLine y={40} stroke="#ffd23d" strokeDasharray="4 4" />
+                  <Line type="monotone" dataKey="yieldPct" stroke="#c6ff3d" strokeWidth={2.5} dot={{ r: 4, fill: "#c6ff3d" }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

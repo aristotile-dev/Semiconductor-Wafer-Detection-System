@@ -50,8 +50,8 @@ export default function Prediction({ waferId, dieArea }: Props) {
   return (
     <>
       <PageHeader
-        title="Semiconductor Wafer Defect Detection"
-        subtitle="EfficientNet-B3 · Murphy Yield Model · LLM Expert Analysis"
+        title="Scan a wafer"
+        subtitle="Upload a wafer map. You get the defect pattern, the yield and a verdict, with an expert explanation."
       />
       <div className="grid-2">
         <div className="card">
@@ -66,7 +66,7 @@ export default function Prediction({ waferId, dieArea }: Props) {
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             {!file ? (
               <>
-                <div style={{ fontSize: "2rem", marginBottom: 6 }}>📤</div>
+                <div style={{ fontSize: "2rem", marginBottom: 6 }}></div>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>Drop a wafer image here</div>
                 <div className="dropzone-hint">PNG · JPG · JPEG — click or drag</div>
               </>
@@ -84,22 +84,22 @@ export default function Prediction({ waferId, dieArea }: Props) {
 
           {result && !error && (
             <button className="btn btn-ghost btn-block mt-1" onClick={clearImage} style={{ fontSize: "0.82rem" }}>
-              🗑️ Clear Image
+              Clear Image
             </button>
           )}
 
           {error && (
             <div style={{ marginTop: 10 }}>
-              <p style={{ color: "#B91C1C", fontSize: "0.85rem" }}>{error}</p>
+              <p style={{ color: "#ff2e93", fontSize: "0.85rem" }}>{error}</p>
               {isInvalidInput && (
                 <button className="btn btn-ghost mt-1" onClick={clearImage} style={{ fontSize: "0.82rem", padding: "7px 14px" }}>
-                  🗑️ Clear Image
+                  Clear Image
                 </button>
               )}
             </div>
           )}
 
-          <div className="mt-3" style={{ fontSize: "0.78rem", color: "#64748B" }}>
+          <div className="mt-3" style={{ fontSize: "0.78rem", color: "#9a9aa8" }}>
             Wafer ID: <strong>{waferId}</strong> &nbsp;·&nbsp;
             Die Area: <strong>{dieArea.toFixed(1)} cm²</strong>
           </div>

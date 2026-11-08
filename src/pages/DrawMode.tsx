@@ -20,7 +20,7 @@ export default function DrawMode({ waferId, dieArea }: Props) {
     const c = canvasRef.current;
     if (!c) return;
     const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#C8C8C8";
+    ctx.fillStyle = "#9a9aa8";
     ctx.fillRect(0, 0, c.width, c.height);
     // Soft wafer outline for the user
     ctx.save();
@@ -92,7 +92,7 @@ export default function DrawMode({ waferId, dieArea }: Props) {
       <div className="grid-2 grid-2-even">
         <div className="card">
           <div className="card-title">Defect Pattern Canvas</div>
-          <p style={{ color: "#64748B", fontSize: "0.82rem", marginBottom: 10 }}>
+          <p style={{ color: "#9a9aa8", fontSize: "0.82rem", marginBottom: 10 }}>
             Click / drag to mark defect dies (black).
           </p>
 
@@ -121,7 +121,7 @@ export default function DrawMode({ waferId, dieArea }: Props) {
             <button className="btn btn-ghost" onClick={resetCanvas}>Clear Canvas</button>
           </div>
 
-          {error && <p style={{ color: "#B91C1C", fontSize: "0.85rem", marginTop: 10 }}>{error}</p>}
+          {error && <p style={{ color: "#ff2e93", fontSize: "0.85rem", marginTop: 10 }}>{error}</p>}
         </div>
 
         <div>

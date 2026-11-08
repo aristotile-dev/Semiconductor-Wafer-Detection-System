@@ -3,6 +3,8 @@ import axios from "axios";
 const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:7860";
 
 export const api = axios.create({ baseURL, timeout: 120000 });
+// `npm run dev:mock` swaps the network for a local fake backend. The module is only loaded in that mode.
+if (import.meta.env.MODE === "mock") api.defaults.adapter = (cfg) => import("./mock").then(m => m.mockAdapter(cfg));
 
 api.interceptors.request.use(config => {
   const token = localStorage.getItem("wafer_token");
@@ -13,7 +15,8 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
   res => res,
   err => {
-    if (err.response?.status === 401) {
+    const isAuthCall = String(err.config?.url ?? "").startsWith("/auth/");
+    if (err.response?.status === 401 && !isAuthCall) {
       localStorage.removeItem("wafer_token");
       localStorage.removeItem("wafer_user");
       window.location.href = "/login";
@@ -66,6 +69,29 @@ export async function login(email: string, password: string): Promise<{ token: s
     headers: { "Content-Type": "application/x-www-form-urlencoded" }
   });
   return { token: data.access_token, user: data.user };
+}
+
+export interface AccessRequest { id: number; email: string; name: string; reason: string; created_at: string; }
+
+export async function requestAccess(payload: { name: string; email: string; reason: string }): Promise<void> {
+  await api.post("/auth/register", payload);
+}
+
+/** Guest scan: no account, one wafer, nothing saved. */
+export async function predictGuest(file: File): Promise<PredictResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post<PredictResult>("/predict-guest", form, { headers: { "Content-Type": "multipart/form-data" } });
+  return data;
+}
+
+export async function adminGetRequests(): Promise<AccessRequest[]> {
+  const { data } = await api.get("/admin/requests");
+  return data;
+}
+
+export async function adminDecideRequest(id: number, action: "approve" | "reject"): Promise<void> {
+  await api.post(`/admin/requests/${id}/${action}`);
 }
 
 export async function predictImage(file: File, dieArea: number): Promise<PredictResult> {

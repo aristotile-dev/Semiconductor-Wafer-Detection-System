@@ -10,9 +10,9 @@ interface Props { result: PredictResult; }
 interface ChatMsg { role: "user" | "assistant"; content: string; }
 
 const decisionColor: Record<string, string> = {
-  SAVE:   "#10B981",
-  REVIEW: "#F59E0B",
-  SCRAP:  "#EF4444"
+  SAVE:   "#c6ff3d",
+  REVIEW: "#ffd23d",
+  SCRAP:  "#ff2e93"
 };
 
 function formatExplanation(text: string) {
@@ -21,7 +21,7 @@ function formatExplanation(text: string) {
     const isHeading = /^step\s*\d+:/i.test(line.trim());
     if (isHeading) {
       return (
-        <p key={i} style={{ fontWeight: 700, marginTop: i === 0 ? 0 : 12, marginBottom: 2, color: "#3730A3" }}>
+        <p key={i} style={{ fontWeight: 700, marginTop: i === 0 ? 0 : 12, marginBottom: 2, color: "#f4f4f0" }}>
           {line.trim()}
         </p>
       );
@@ -93,7 +93,7 @@ export default function ResultPanel({ result }: Props) {
     .sort((a, b) => a.p - b.p);
 
   const barColor   = decisionColor[result.decision];
-  const badgeEmoji = result.decision === "SAVE" ? "✅" : result.decision === "REVIEW" ? "⚠️" : "❌";
+  const badgeEmoji = result.decision === "SAVE" ? "" : result.decision === "REVIEW" ? "" : "";
   const badgeCls   = `badge badge-${result.decision.toLowerCase()}`;
 
   return (
@@ -127,11 +127,11 @@ export default function ResultPanel({ result }: Props) {
 
       {/* Yield bar */}
       <div style={{ marginTop: 6 }}>
-        <div style={{ background: "#E2E8F0", borderRadius: 10, height: 14, overflow: "hidden" }}>
+        <div style={{ background: "#ffffff2e", borderRadius: 10, height: 14, overflow: "hidden" }}>
           <div style={{ width: `${result.yield_pct}%`, height: "100%", background: barColor, transition: "width 0.35s ease" }} />
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", color: "#64748B", marginTop: 4 }}>
-          <span>0%</span><span style={{ color: "#F59E0B" }}>40%</span><span style={{ color: "#10B981" }}>70%</span><span>100%</span>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", color: "#9a9aa8", marginTop: 4 }}>
+          <span>0%</span><span style={{ color: "#ffd23d" }}>40%</span><span style={{ color: "#c6ff3d" }}>70%</span><span>100%</span>
         </div>
       </div>
 
@@ -139,7 +139,7 @@ export default function ResultPanel({ result }: Props) {
       {result.gradcam && (
         <div className="mt-3">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <div className="card-title" style={{ marginBottom: 0 }}>🔥 Grad-CAM Heatmap</div>
+            <div className="card-title" style={{ marginBottom: 0 }}>Grad-CAM Heatmap</div>
             <button
               className="btn btn-ghost"
               style={{ fontSize: "0.75rem", padding: "5px 12px" }}
@@ -159,9 +159,9 @@ export default function ResultPanel({ result }: Props) {
                 style={{ overflow: "hidden" }}
               >
                 <div style={{
-                  background: "#0F0E1A",
+                  background: "#0a0a0f",
                   borderRadius: 12, padding: 12,
-                  border: "1px solid #E2E8F0",
+                  border: "1px solid #ffffff2e",
                   textAlign: "center"
                 }}>
                   <img
@@ -169,17 +169,17 @@ export default function ResultPanel({ result }: Props) {
                     alt="Grad-CAM Heatmap"
                     style={{ maxWidth: "100%", borderRadius: 8, display: "block", margin: "0 auto" }}
                   />
-                  <p style={{ fontSize: "0.72rem", color: "#94A3B8", marginTop: 8, marginBottom: 0 }}>
-                    🔴 Red/Yellow → High activation regions (where AI focused) &nbsp;·&nbsp; 🔵 Blue → Low activation
+                  <p style={{ fontSize: "0.72rem", color: "#9a9aa8", marginTop: 8, marginBottom: 0 }}>
+                    Red/Yellow → High activation regions (where AI focused) &nbsp;·&nbsp; Blue → Low activation
                   </p>
                 </div>
 
                 {/* Defect ratio info */}
                 <div style={{
-                  marginTop: 10, background: "#EEF2FF",
-                  borderLeft: "4px solid #6D28D9",
+                  marginTop: 10, background: "#1b1b25",
+                  borderLeft: "4px solid #c6ff3d",
                   borderRadius: "0 8px 8px 0", padding: "10px 14px",
-                  fontSize: "0.82rem", color: "#3730A3"
+                  fontSize: "0.82rem", color: "#f4f4f0"
                 }}>
                   <strong>Defect Density:</strong> {(result.defect_ratio * 100).toFixed(2)}% of wafer surface affected.
                   The highlighted regions show where the EfficientNet-B3 model detected the <strong>{result.defect_type}</strong> defect pattern.
@@ -196,13 +196,13 @@ export default function ResultPanel({ result }: Props) {
         <div style={{ width: "100%", height: 240 }}>
           <ResponsiveContainer>
             <BarChart data={probData} layout="vertical" margin={{ top: 4, right: 20, left: 4, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: "#64748B" }} />
-              <YAxis dataKey="cls" type="category" tick={{ fontSize: 11, fill: "#334155" }} width={70} />
-              <Tooltip formatter={(v: number) => `${v}%`} contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff2e" />
+              <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: "#9a9aa8" }} />
+              <YAxis dataKey="cls" type="category" tick={{ fontSize: 11, fill: "#ffffff2e" }} width={70} />
+              <Tooltip formatter={(v: number) => `${v}%`} contentStyle={{ borderRadius: 8, border: "1px solid #ffffff2e", fontSize: 12 }} />
               <Bar dataKey="p" radius={[0, 6, 6, 0]}>
                 {probData.map((d, i) => (
-                  <Cell key={i} fill={d.cls === result.defect_type ? "#6D28D9" : "#CBD5E1"} />
+                  <Cell key={i} fill={d.cls === result.defect_type ? "#c6ff3d" : "#9a9aa8"} />
                 ))}
               </Bar>
             </BarChart>
@@ -213,8 +213,8 @@ export default function ResultPanel({ result }: Props) {
       {/* Expert Analysis */}
       <div className="mt-3">
         <div className="card-title">Expert Analysis</div>
-        {loading && <p style={{ color: "#64748B", fontSize: "0.85rem" }}>Fetching expert analysis…</p>}
-        {err    && <p style={{ color: "#B91C1C", fontSize: "0.85rem" }}>{err}</p>}
+        {loading && <p style={{ color: "#9a9aa8", fontSize: "0.85rem" }}>Fetching expert analysis…</p>}
+        {err    && <p style={{ color: "#ff2e93", fontSize: "0.85rem" }}>{err}</p>}
         {expl && (
           <>
             <div className="expert-box" style={{ fontSize: "0.88rem", lineHeight: 1.7 }}>
@@ -225,7 +225,7 @@ export default function ResultPanel({ result }: Props) {
               style={{ fontSize: "0.82rem", padding: "8px 18px" }}
               onClick={() => setChatOpen(v => !v)}
             >
-              {chatOpen ? "✕ Close Chat" : "💬 Know More"}
+              {chatOpen ? "Close Chat" : "Know More"}
             </button>
           </>
         )}
@@ -241,14 +241,14 @@ export default function ResultPanel({ result }: Props) {
             transition={{ duration: 0.22 }}
             style={{ overflow: "hidden" }}
           >
-            <div className="mt-2" style={{ border: "1px solid #E2E8F0", borderRadius: 12, overflow: "hidden", background: "#FAFAFF" }}>
+            <div className="mt-2" style={{ border: "1px solid #ffffff2e", borderRadius: 12, overflow: "hidden", background: "#1b1b25" }}>
               <div style={{
-                background: "linear-gradient(135deg, #1E1B4B, #3730A3)",
+                background: "linear-gradient(135deg, #14141b, #f4f4f0)",
                 padding: "10px 16px", color: "#fff",
                 fontSize: "0.82rem", fontWeight: 600,
                 display: "flex", alignItems: "center", gap: 8
               }}>
-                🤖 Wafer Expert Chat
+                Wafer Expert Chat
                 <span style={{ fontSize: "0.72rem", fontWeight: 400, opacity: 0.75, marginLeft: 4 }}>
                   Ask anything about this wafer
                 </span>
@@ -256,7 +256,7 @@ export default function ResultPanel({ result }: Props) {
 
               <div style={{ height: 280, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
                 {messages.length === 0 && (
-                  <p style={{ color: "#94A3B8", fontSize: "0.82rem", textAlign: "center", marginTop: 80 }}>
+                  <p style={{ color: "#9a9aa8", fontSize: "0.82rem", textAlign: "center", marginTop: 80 }}>
                     Ask me anything about this wafer defect, yield, or corrective actions!
                   </p>
                 )}
@@ -265,11 +265,11 @@ export default function ResultPanel({ result }: Props) {
                     <div style={{
                       maxWidth: "80%", padding: "8px 12px",
                       borderRadius: m.role === "user" ? "12px 12px 2px 12px" : "12px 12px 12px 2px",
-                      background: m.role === "user" ? "linear-gradient(135deg, #3730A3, #6D28D9)" : "#fff",
-                      color: m.role === "user" ? "#fff" : "#1E293B",
+                      background: m.role === "user" ? "linear-gradient(135deg, #f4f4f0, #c6ff3d)" : "#fff",
+                      color: m.role === "user" ? "#fff" : "#f4f4f0",
                       fontSize: "0.84rem", lineHeight: 1.6,
                       boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-                      border: m.role === "assistant" ? "1px solid #E2E8F0" : "none"
+                      border: m.role === "assistant" ? "1px solid #ffffff2e" : "none"
                     }}>
                       {m.content}
                     </div>
@@ -277,7 +277,7 @@ export default function ResultPanel({ result }: Props) {
                 ))}
                 {chatLoading && (
                   <div style={{ display: "flex", justifyContent: "flex-start" }}>
-                    <div style={{ padding: "8px 14px", borderRadius: "12px 12px 12px 2px", background: "#fff", border: "1px solid #E2E8F0", fontSize: "0.84rem", color: "#94A3B8" }}>
+                    <div style={{ padding: "8px 14px", borderRadius: "12px 12px 12px 2px", background: "#fff", border: "1px solid #ffffff2e", fontSize: "0.84rem", color: "#9a9aa8" }}>
                       Thinking…
                     </div>
                   </div>
@@ -285,14 +285,14 @@ export default function ResultPanel({ result }: Props) {
                 <div ref={bottomRef} />
               </div>
 
-              <div style={{ borderTop: "1px solid #E2E8F0", padding: "10px 12px", display: "flex", gap: 8, background: "#fff" }}>
+              <div style={{ borderTop: "1px solid #ffffff2e", padding: "10px 12px", display: "flex", gap: 8, background: "#fff" }}>
                 <input
                   type="text"
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && sendMessage()}
                   placeholder="Ask about this defect…"
-                  style={{ flex: 1, padding: "8px 12px", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: "0.85rem", outline: "none", background: "#FAFAFF", color: "#1E293B" }}
+                  style={{ flex: 1, padding: "8px 12px", border: "1px solid #ffffff2e", borderRadius: 8, fontSize: "0.85rem", outline: "none", background: "#1b1b25", color: "#f4f4f0" }}
                 />
                 <button className="btn btn-primary" onClick={sendMessage} disabled={!input.trim() || chatLoading} style={{ padding: "8px 16px", fontSize: "0.82rem" }}>
                   Send
