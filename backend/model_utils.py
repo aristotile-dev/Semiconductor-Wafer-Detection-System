@@ -1,4 +1,6 @@
+import io
 import math
+import base64
 import torch
 import torch.nn as nn
 import numpy as np
@@ -58,7 +60,81 @@ def murphy_yield(defect_ratio, die_area_cm2=0.5, wafer_area_cm2=706.86):
     return round(yield_val * 100, 2)
 
 
-def predict(image, model, die_area_cm2=0.5):
+def generate_gradcam(image: PILImage.Image, model, pred_class: int) -> str:
+    """
+    Generate Grad-CAM heatmap for the predicted class.
+    Returns base64 encoded PNG of the heatmap overlaid on the original image.
+    """
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406],
+                             [0.229, 0.224, 0.225])
+    ])
+    img_tensor = transform(image).unsqueeze(0).to(device)
+
+    # Storage for gradients and activations
+    gradients = []
+    activations = []
+
+    # Hook the last conv layer of EfficientNet-B3 (features[-1])
+    def forward_hook(module, input, output):
+        activations.append(output)
+
+    def backward_hook(module, grad_input, grad_output):
+        gradients.append(grad_output[0])
+
+    # EfficientNet-B3 last conv block
+    target_layer = model.features[-1]
+    fwd_handle = target_layer.register_forward_hook(forward_hook)
+    bwd_handle = target_layer.register_full_backward_hook(backward_hook)
+
+    # Forward pass with gradients
+    model.eval()
+    output = model(img_tensor)
+    model.zero_grad()
+
+    # Backprop for predicted class
+    score = output[0, pred_class]
+    score.backward()
+
+    fwd_handle.remove()
+    bwd_handle.remove()
+
+    # Compute Grad-CAM
+    grads   = gradients[0].cpu().detach().numpy()[0]   # (C, H, W)
+    acts    = activations[0].cpu().detach().numpy()[0]  # (C, H, W)
+    weights = np.mean(grads, axis=(1, 2))               # (C,)
+
+    cam = np.zeros(acts.shape[1:], dtype=np.float32)
+    for i, w in enumerate(weights):
+        cam += w * acts[i]
+
+    cam = np.maximum(cam, 0)
+    if cam.max() > 0:
+        cam = cam / cam.max()
+
+    # Resize to original image size
+    orig_w, orig_h = image.size
+    cam_resized = cv2.resize(cam, (orig_w, orig_h))
+
+    # Apply colormap
+    heatmap = cv2.applyColorMap(np.uint8(255 * cam_resized), cv2.COLORMAP_JET)
+    heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+
+    # Overlay on original image
+    orig_np = np.array(image.resize((orig_w, orig_h)).convert("RGB"))
+    overlay = cv2.addWeighted(orig_np, 0.5, heatmap, 0.5, 0)
+    overlay_img = PILImage.fromarray(overlay)
+
+    # Encode to base64
+    buf = io.BytesIO()
+    overlay_img.save(buf, format="PNG")
+    buf.seek(0)
+    return "data:image/png;base64," + base64.b64encode(buf.read()).decode("utf-8")
+
+
+def predict(image: PILImage.Image, model, die_area_cm2=0.5):
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
@@ -85,11 +161,19 @@ def predict(image, model, die_area_cm2=0.5):
     else:
         decision = "SCRAP"
 
+    # Generate Grad-CAM
+    try:
+        gradcam_b64 = generate_gradcam(image, model, pred)
+    except Exception as e:
+        print(f"[Grad-CAM] failed: {e}")
+        gradcam_b64 = None
+
     return {
         "defect_type":  defect_type,
         "confidence":   confidence,
         "all_probs":    all_probs,
         "yield_pct":    yield_pct,
         "decision":     decision,
-        "defect_ratio": defect_ratio
+        "defect_ratio": defect_ratio,
+        "gradcam":      gradcam_b64
     }

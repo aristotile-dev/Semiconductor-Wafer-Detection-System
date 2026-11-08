@@ -1,0 +1,32 @@
+# Dependencies and build output
+node_modules/
+dist/
+.vite/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local database and model weights
+*.db
+*.sqlite
+*.pt
+*.pth
+*.keras
+*.h5
+
+# Tooling and editor files
+.playwright-mcp/
+.impeccable/
+.claude/
+.vscode/
+.idea/
+*.log
+.DS_Store
