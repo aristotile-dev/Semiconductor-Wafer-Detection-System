@@ -1,152 +1,138 @@
 import { useRef, useState } from "react";
-import PageHeader from "../components/PageHeader";
+import RunSettings from "../components/RunSettings";
 import { predictImage, saveHistory, PredictResult } from "../api/client";
 import { useHistory } from "../context/HistoryContext";
 
-interface BatchItem {
-  file:    File;
-  preview: string;
-  status:  "pending" | "processing" | "success" | "invalid" | "error";
-  result?: PredictResult;
-  error?:  string;
-}
+interface Item { file: File; preview: string; status: "pending" | "processing" | "success" | "invalid" | "error"; result?: PredictResult; error?: string; }
+interface Props { dieArea: number; onDieAreaChange: (v: number) => void; }
 
-const decisionColor: Record<string, string> = { SAVE: "#c6ff3d", REVIEW: "#ffd23d", SCRAP: "#ff2e93" };
-const decisionBadge: Record<string, string> = { SAVE: "badge-save", REVIEW: "badge-review", SCRAP: "badge-scrap" };
-
-interface Props { dieArea: number; }
-
-export default function BatchPrediction({ dieArea }: Props) {
-  const [items, setItems]     = useState<BatchItem[]>([]);
+export default function BatchPrediction({ dieArea, onDieAreaChange }: Props) {
+  const [items, setItems] = useState<Item[]>([]);
   const [running, setRunning] = useState(false);
-  const [done, setDone]       = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [done, setDone] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
   const { addEntry } = useHistory();
 
-  const handleFiles = (files: FileList) => {
-    const arr = Array.from(files).slice(0, 10);
-    setItems(arr.map(f => ({ file: f, preview: URL.createObjectURL(f), status: "pending" })));
+  const pick = (files: FileList) => {
+    setItems(Array.from(files).slice(0, 10).map(f => ({ file: f, preview: URL.createObjectURL(f), status: "pending" })));
     setDone(false);
   };
 
-  const runBatch = async () => {
-    if (items.length === 0) return;
+  const run = async () => {
+    if (!items.length) return;
     setRunning(true); setDone(false);
-
     for (let i = 0; i < items.length; i++) {
-      setItems(prev => prev.map((it, idx) => idx === i ? { ...it, status: "processing" } : it));
+      setItems(p => p.map((it, k) => k === i ? { ...it, status: "processing" } : it));
       try {
         const r = await predictImage(items[i].file, dieArea);
-        const batchWaferId = `BATCH-${String(i + 1).padStart(3, "0")}`;
-        addEntry(batchWaferId, r);
-        await saveHistory({
-          wafer_id: batchWaferId, defect_type: r.defect_type,
-          confidence: r.confidence, yield_pct: r.yield_pct,
-          decision: r.decision, defect_ratio: r.defect_ratio
-        });
-        setItems(prev => prev.map((it, idx) => idx === i ? { ...it, status: "success", result: r } : it));
+        const id = `BATCH-${String(i + 1).padStart(3, "0")}`;
+        addEntry(id, r);
+        await saveHistory({ wafer_id: id, defect_type: r.defect_type, confidence: r.confidence, yield_pct: r.yield_pct, decision: r.decision, defect_ratio: r.defect_ratio });
+        setItems(p => p.map((it, k) => k === i ? { ...it, status: "success", result: r } : it));
       } catch (e: any) {
-        const msg = e?.response?.data?.detail || e?.message || "Prediction failed";
-        const isInvalid = msg.toLowerCase().includes("invalid input");
-        setItems(prev => prev.map((it, idx) => idx === i ? { ...it, status: isInvalid ? "invalid" : "error", error: msg } : it));
+        const msg = e?.response?.data?.detail || e?.message || "Scan failed";
+        setItems(p => p.map((it, k) => k === i ? { ...it, status: msg.toLowerCase().includes("invalid input") ? "invalid" : "error", error: msg } : it));
       }
     }
     setRunning(false); setDone(true);
   };
 
-  const clearAll = () => {
-    setItems([]); setDone(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const successItems = items.filter(i => i.status === "success");
-  const invalidItems = items.filter(i => i.status === "invalid");
+  const clear = () => { setItems([]); setDone(false); if (input.current) input.current.value = ""; };
+  const finished = items.filter(i => i.status === "success" || i.status === "invalid" || i.status === "error");
+  const ok = items.filter(i => i.status === "success");
+  const bad = items.filter(i => i.status === "invalid");
+  const started = running || done;
+  const avg = ok.length ? (ok.reduce((s, i) => s + (i.result?.yield_pct ?? 0), 0) / ok.length).toFixed(1) + "%" : "–";
+  const label = items.length === 0 ? "Scan wafers" : items.length === 1 ? "Scan 1 wafer" : `Scan ${items.length} wafers`;
+  const short = (n: string) => (n.length > 14 ? n.slice(0, 11) + "..." : n);
 
   return (
-    <>
-      <PageHeader title="Batch Prediction" subtitle="Upload multiple wafer images — processed one by one automatically" />
-
-      <div className="card">
-        <div className="card-title">Upload Wafer Images (max 10)</div>
-        <div
-          className={`dropzone ${items.length > 0 ? "has-file" : ""}`}
-          onClick={() => !running && fileInputRef.current?.click()}
+    <div className="batchpage">
+      <section className="bleft">
+        <h1 className="one"><span>Scan </span><em>a stack.</em></h1>
+        <div className={"bdrop" + (items.length ? " has" : "")} role="button" tabIndex={0}
+          onClick={() => !running && input.current?.click()}
+          onKeyDown={e => { if ((e.key === "Enter" || e.key === " ") && !running) { e.preventDefault(); input.current?.click(); } }}
           onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); if (!running && e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files); }}
-          style={{ cursor: running ? "not-allowed" : "pointer" }}
-        >
-          <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/jpg" multiple
-            onChange={e => { if (e.target.files?.length) handleFiles(e.target.files); }} />
-          {items.length === 0 ? (
-            <>
-              <div style={{ fontSize: "2rem", marginBottom: 6 }}></div>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>Drop multiple wafer images here</div>
-              <div className="dropzone-hint">PNG · JPG · JPEG — up to 10 images</div>
-            </>
-          ) : (
-            <div style={{ fontSize: "0.85rem", color: "#9a9aa8" }}>
-              {items.length} image{items.length > 1 ? "s" : ""} selected — click to change
-            </div>
-          )}
+          onDrop={e => { e.preventDefault(); if (!running && e.dataTransfer.files?.length) pick(e.dataTransfer.files); }}>
+          <input ref={input} type="file" accept="image/png,image/jpeg" multiple hidden onChange={e => e.target.files?.length && pick(e.target.files)} />
+          <i className="ring" />
+          {items.length === 0
+            ? <div><b>Drop up to 10<br />wafer maps</b><span>PNG or JPG. Click or drag.</span></div>
+            : <div><b>{items.length} {items.length === 1 ? "map" : "maps"}<br />ready</b><span>Click to pick different ones</span></div>}
         </div>
-
-        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-          <button className="btn btn-primary" style={{ flex: 1 }} onClick={runBatch} disabled={items.length === 0 || running}>
-            {running ? <><span className="spinner" /> Processing…</> : `Run Batch (${items.length} images)`}
+        <div className="acts">
+          <button className="btn main" onClick={run} disabled={!items.length || running}>
+            {running ? <><i className="spin" /> Scanning {Math.min(finished.length + 1, items.length)} of {items.length}</> : label}
           </button>
-          {items.length > 0 && !running && (
-            <button className="btn btn-ghost" onClick={clearAll}>Clear All</button>
-          )}
+          {items.length > 0 && !running && <button className="btn" onClick={clear}>Clear</button>}
         </div>
-      </div>
+        <RunSettings dieArea={dieArea} onDieAreaChange={onDieAreaChange} />
+      </section>
 
-      {done && (
-        <div className="card" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          {[
-            { label: "Total", value: items.length, color: "#f4f4f0" },
-            { label: "Success", value: successItems.length, color: "#c6ff3d" },
-            { label: "Invalid", value: invalidItems.length, color: "#ff2e93" },
-            { label: "Avg Yield", value: successItems.length > 0 ? (successItems.reduce((s, i) => s + (i.result?.yield_pct ?? 0), 0) / successItems.length).toFixed(1) + "%" : "—", color: "#c6ff3d" }
-          ].map((s, i) => (
-            <div key={i} className="metric-card" style={{ flex: 1, minWidth: 100 }}>
-              <div className="m-label">{s.label}</div>
-              <div className="m-value" style={{ color: s.color }}>{s.value}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {items.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {items.map((item, idx) => (
-            <div key={idx} className="card" style={{ display: "flex", gap: 16, alignItems: "center" }}>
-              <img src={item.preview} alt={item.file.name} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, flexShrink: 0, border: "1px solid #ffffff2e" }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: "0.88rem", color: "#f4f4f0", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {item.file.name}
+      <section className="bright">
+        <div className="tile rackbox">
+          <h2>Wafer rack <small>{items.length} of 10 slots</small></h2>
+          <div className="rack" aria-label="Wafer slots"><div className="rackin">
+            {Array.from({ length: 10 }).map((_, i) => {
+              const it = items[i];
+              const tone = it?.status === "success" ? it.result!.decision.toLowerCase() : it?.status === "invalid" || it?.status === "error" ? "scrap" : "";
+              return (
+                <div key={i} className="cell">
+                  <div className={"slot " + (it ? it.status : "vacant") + " " + tone}>
+                    {it ? <img src={it.preview} alt="" /> : <b>{i + 1}</b>}
+                  </div>
+                  <span className="lab">{it ? short(it.file.name) : "Empty"}</span>
+                  <span className={"st " + tone}>
+                    {!it ? "" : it.status === "success" ? `${it.result!.yield_pct}% ${it.result!.decision}` : it.status === "processing" ? "Scanning" : it.status === "invalid" ? "Not a map" : it.status === "error" ? "Failed" : "Waiting"}
+                  </span>
                 </div>
-                {item.status === "pending"    && <span style={{ fontSize: "0.78rem", color: "#9a9aa8" }}>⏳ Waiting…</span>}
-                {item.status === "processing" && <span style={{ fontSize: "0.78rem", color: "#c6ff3d", display: "flex", alignItems: "center", gap: 6 }}><span className="spinner" style={{ borderColor: "#ffffff2e", borderTopColor: "#c6ff3d", width: 14, height: 14 }} />Analyzing…</span>}
-                {item.status === "invalid"    && <span style={{ fontSize: "0.78rem", color: "#ff2e93" }}>Invalid input — not a wafer image</span>}
-                {item.status === "error"      && <span style={{ fontSize: "0.78rem", color: "#ff2e93" }}>{item.error}</span>}
-                {item.status === "success" && item.result && (
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <span className={`badge ${decisionBadge[item.result.decision]}`} style={{ fontSize: "0.72rem", padding: "3px 10px" }}>
-                      {item.result.decision === "SAVE" ? "" : item.result.decision === "REVIEW" ? "" : ""} {item.result.decision}
-                    </span>
-                    <span style={{ fontSize: "0.78rem", color: "#ffffff2e" }}>
-                      <strong>{item.result.defect_type}</strong> · {item.result.confidence.toFixed(1)}% confidence
-                    </span>
-                    <span style={{ fontSize: "0.78rem", color: "#9a9aa8" }}>
-                      Yield: <strong style={{ color: decisionColor[item.result.decision] }}>{item.result.yield_pct}%</strong>
-                    </span>
+              );
+            })}
+          </div>
+          </div>
+          <div className="key" aria-label="Verdict key">
+            <span><i className="save" />SAVE 70%+</span>
+            <span><i className="review" />REVIEW 40-69%</span>
+            <span><i className="scrap" />SCRAP under 40%</span>
+          </div>
+        </div>
+        <section className="facts four" aria-label="Batch totals">
+          <div><span>Scanned</span><b>{started ? finished.length : "–"}</b></div>
+          <div><span>Read OK</span><b>{started ? ok.length : "–"}</b></div>
+          <div><span>Not a map</span><b>{started ? bad.length : "–"}</b></div>
+          <div><span>Average yield</span><b>{started ? avg : "–"}</b></div>
+        </section>
+      </section>
+
+      {finished.length > 0 && (
+        <section className="bjobs">
+          <div className="jobs">
+            {items.map((it, i) => (
+              <div key={i} className="job">
+                <img src={it.preview} alt="" />
+                <div style={{ minWidth: 0 }}>
+                  <div className="n">{it.file.name}</div>
+                  <div className="s">
+                    {it.status === "pending" && "Waiting"}
+                    {it.status === "processing" && "Scanning…"}
+                    {it.status === "invalid" && "Not a wafer map"}
+                    {it.status === "error" && it.error}
+                    {it.status === "success" && it.result && `${it.result.defect_type} · ${it.result.confidence.toFixed(1)}% sure`}
+                  </div>
+                </div>
+                {it.status === "success" && it.result && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span className="y">{it.result.yield_pct}%</span>
+                    <span className={"v " + it.result.decision.toLowerCase()}>{it.result.decision}</span>
                   </div>
                 )}
+                {it.status === "processing" && <i className="spin lt" />}
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </section>
       )}
-    </>
+    </div>
   );
 }

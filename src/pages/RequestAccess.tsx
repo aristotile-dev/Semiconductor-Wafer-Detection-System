@@ -1,16 +1,25 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import TopNav from "../components/TopNav";
+import FillWafer from "../components/FillWafer";
 import { requestAccess } from "../api/client";
 import "../styles/landing.css";
 import "../styles/public.css";
+import "../styles/app.css";
 
+const okEmail = (v: string) => /^\S+@\S+\.\S+$/.test(v.trim());
+
+/** Request access. The wafer on the right fills up as the form does. */
 export default function RequestAccess() {
   const [form, setForm] = useState({ name: "", email: "", reason: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value });
+
+  const steps = [form.name.trim().length > 1, okEmail(form.email), form.reason.trim().length > 0];
+  const done = steps.filter(Boolean).length;
+  const fill = sent ? 1 : done / 3;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setErr(null);
@@ -23,28 +32,39 @@ export default function RequestAccess() {
     <div className="landing">
       <div className="grain" />
       <TopNav />
-      <main className="pub pub-narrow">
-        <div>
-          <h1><span className="ln">Ask for</span><span className="ln a">access.</span></h1>
-          <p className="lead">Accounts are approved by hand. Tell us who you are and you get an email when you are in.</p>
-
+      <div className="app rqp" role="main">
+        <section className="rl">
+          <h1 className="one"><span>Ask for </span><em>access.</em></h1>
           {sent ? (
-            <div className="done" role="status">
+            <div className="rdone" role="status">
               <b>Request sent.</b>
-              <p>We emailed the admin. You will hear back at {form.email} once your account is approved. Meanwhile you can <Link to="/scan" style={{ color: "var(--acid)" }}>scan a wafer as a guest</Link>.</p>
+              <p>Your request is with the admin. Once it is approved, sign in with {form.email}.</p>
+              <div className="gbtn"><Link className="btn main" to="/scan">Scan a wafer meanwhile</Link><Link className="btn" to="/login">Sign in</Link></div>
             </div>
           ) : (
-            <form className="panel" onSubmit={submit}>
-              {err && <p className="err" role="alert">{err}</p>}
-              <div className="field"><label htmlFor="n">Name</label><input id="n" required autoComplete="name" value={form.name} onChange={set("name")} /></div>
-              <div className="field"><label htmlFor="e">Email</label><input id="e" type="email" required autoComplete="email" value={form.email} onChange={set("email")} /></div>
-              <div className="field"><label htmlFor="r">What will you use it for? <span style={{ color: "#6a6a78", fontWeight: 400 }}>(optional)</span></label><textarea id="r" value={form.reason} onChange={set("reason")} /></div>
-              <button className="btn main" disabled={busy}>{busy ? "Sending…" : "Send request"}</button>
-              <p className="alt">Already approved? <Link to="/login">Sign in</Link></p>
-            </form>
+            <>
+              <p className="gsub">Accounts are approved by hand. Tell us who you are.</p>
+              <form className="rform" onSubmit={submit}>
+                {err && <p className="err" role="alert">{err}</p>}
+                <div className="f"><label htmlFor="n">Name</label><input id="n" required autoComplete="name" placeholder="Priya N" value={form.name} onChange={set("name")} /></div>
+                <div className="f"><label htmlFor="e">Email</label><input id="e" type="email" required autoComplete="email" placeholder="priya@fab.example" value={form.email} onChange={set("email")} /></div>
+                <div className="f"><label htmlFor="r">What will you use it for? <small>Optional</small></label><textarea id="r" rows={2} placeholder="Checking wafer maps for my line" value={form.reason} onChange={set("reason")} /></div>
+                <button className="btn main block" disabled={busy}>{busy ? "Sending…" : "Send request"}</button>
+                <p className="alt">Already approved? <Link to="/login">Sign in</Link></p>
+              </form>
+            </>
           )}
+        </section>
+
+        <div className="rstagebox">
+          <FillWafer fill={fill} className={sent ? "v-save" : ""}>
+            <div className={"read " + (sent || done === 3 ? "save" : "")}>
+              <div className="num">{sent ? "In" : `${done}/3`}</div>
+              <span className={"sticker " + (sent || done === 3 ? "save" : "review")}>{sent ? "SENT" : done === 3 ? "FILLING DONE" : "FILLING"}</span>
+            </div>
+          </FillWafer>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

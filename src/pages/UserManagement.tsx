@@ -1,277 +1,151 @@
-import { useEffect, useState } from "react";
-import PageHeader from "../components/PageHeader";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import Select from "../components/Select";
+import Icon from "../components/Icons";
 import {
-  adminGetUsers, adminCreateUser, adminUpdateUser,
-  adminDeleteUser, adminGetUserHistory, HistoryEntry,
+  adminGetUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminGetUserHistory, HistoryEntry,
   adminGetRequests, adminDecideRequest, AccessRequest
 } from "../api/client";
 
-interface UserRow {
-  id: number; email: string; name: string;
-  role: string; is_active: boolean;
-  created_at: string; total_predictions: number;
-}
+interface UserRow { id: number; email: string; name: string; role: string; is_active: boolean; created_at: string; total_predictions: number; }
+
+const when = (iso: string) => new Date(iso.includes("T") || iso.includes("Z") ? iso : iso.replace(" ", "T")).getTime();
+const ago = (iso: string) => {
+  const s = Math.max(0, (Date.now() - when(iso)) / 1000);
+  if (s < 90) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+  if (s < 30 * 86400) return `${Math.round(s / 86400)}d ago`;
+  return new Date(when(iso)).toLocaleDateString();
+};
 
 export default function UserManagement() {
-  const [users, setUsers]           = useState<UserRow[]>([]);
-  const [requests, setRequests]     = useState<AccessRequest[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [showAdd, setShowAdd]       = useState(false);
-  const [viewHistory, setViewHistory] = useState<{ user: UserRow; entries: HistoryEntry[] } | null>(null);
-  const [newUser, setNewUser]       = useState({ email: "", name: "", password: "", role: "user" });
-  const [addError, setAddError]     = useState<string | null>(null);
-  const [addLoading, setAddLoading] = useState(false);
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [requests, setRequests] = useState<AccessRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [menu, setMenu] = useState<number | null>(null);
+  const [sure, setSure] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [view, setView] = useState<{ user: UserRow; entries: HistoryEntry[] } | null>(null);
+  const [form, setForm] = useState({ email: "", name: "", password: "", role: "user" });
+  const [addError, setAddError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const data = await adminGetUsers();
-      setUsers(data);
-    } catch { } finally { setLoading(false); }
-  };
-
+  const fetchUsers = async () => { try { setUsers(await adminGetUsers()); } catch { /* keep list */ } finally { setLoading(false); } };
   const fetchRequests = () => adminGetRequests().then(setRequests).catch(() => {});
   useEffect(() => { fetchUsers(); fetchRequests(); }, []);
 
+  useEffect(() => {
+    const off = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) { setMenu(null); setSure(null); } };
+    document.addEventListener("mousedown", off);
+    return () => document.removeEventListener("mousedown", off);
+  }, []);
+  useEffect(() => {
+    if (!view && !adding) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { setView(null); setAdding(false); } };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [view, adding]);
+
   const decide = async (r: AccessRequest, action: "approve" | "reject") => {
-    await adminDecideRequest(r.id, action);
-    fetchRequests(); fetchUsers();
+    setRequests(rs => rs.filter(x => x.id !== r.id));
+    await adminDecideRequest(r.id, action); fetchRequests(); fetchUsers();
   };
-
-  const handleToggleActive = async (u: UserRow) => {
-    await adminUpdateUser(u.id, { is_active: !u.is_active });
-    fetchUsers();
+  const toggle = async (u: UserRow) => { setMenu(null); await adminUpdateUser(u.id, { is_active: !u.is_active }); fetchUsers(); };
+  const remove = async (u: UserRow) => {
+    if (sure !== u.id) { setSure(u.id); return; }
+    setMenu(null); setSure(null); await adminDeleteUser(u.id); fetchUsers();
   };
+  const open = async (u: UserRow) => { setMenu(null); setView({ user: u, entries: await adminGetUserHistory(u.id) }); };
 
-  const handleDelete = async (u: UserRow) => {
-    if (!confirm(`Delete user ${u.email}? This will also delete all their predictions.`)) return;
-    await adminDeleteUser(u.id);
-    fetchUsers();
-  };
-
-  const handleViewHistory = async (u: UserRow) => {
-    const entries = await adminGetUserHistory(u.id);
-    setViewHistory({ user: u, entries });
-  };
-
-  const handleAddUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAddLoading(true); setAddError(null);
+  const create = async (e: React.FormEvent) => {
+    e.preventDefault(); setBusy(true); setAddError(null);
     try {
-      await adminCreateUser(newUser);
-      setShowAdd(false);
-      setNewUser({ email: "", name: "", password: "", role: "user" });
-      fetchUsers();
-    } catch (err: any) {
-      setAddError(err?.response?.data?.detail || "Failed to create user");
-    } finally { setAddLoading(false); }
+      await adminCreateUser(form); setAdding(false); setForm({ email: "", name: "", password: "", role: "user" }); fetchUsers();
+    } catch (err: any) { setAddError(err?.response?.data?.detail || "Could not create the account."); }
+    finally { setBusy(false); }
   };
-
-  const decisionColor: Record<string, string> = { SAVE: "#c6ff3d", REVIEW: "#ffd23d", SCRAP: "#ff2e93" };
-  const decisionBg: Record<string, string>    = { SAVE: "#1b1b25", REVIEW: "#1b1b25", SCRAP: "#1b1b25" };
 
   return (
-    <>
-      <PageHeader title="People" subtitle="Approve access requests, manage accounts and see what each person scanned." />
+    <div className="peoplepage">
+      <header className="phead"><h1 className="one"><span>Who's </span><em>in.</em></h1></header>
 
-      <div className="card" style={{ borderColor: requests.length ? "#c6ff3d" : undefined }}>
-        <div className="card-title">Waiting for approval ({requests.length})</div>
-        {requests.length === 0 ? (
-          <p style={{ color: "#9a9aa8" }}>No requests right now. New ones also arrive by email.</p>
-        ) : requests.map(r => (
-          <div key={r.id} className="row" style={{ justifyContent: "space-between", padding: "12px 0", borderTop: "1px solid #ffffff1a" }}>
-            <div style={{ minWidth: 0 }}>
-              <b>{r.name}</b> <span style={{ color: "#9a9aa8" }}>{r.email}</span>
-              {r.reason && <div style={{ color: "#b9b9c6", fontSize: 14, marginTop: 4 }}>{r.reason}</div>}
-              <div style={{ color: "#9a9aa8", fontSize: 12, marginTop: 4 }}>{new Date(r.created_at).toLocaleString()}</div>
-            </div>
-            <div className="row">
-              <button className="btn btn-primary btn-sm" onClick={() => decide(r, "approve")}>Approve</button>
-              <button className="btn btn-danger btn-sm" onClick={() => decide(r, "reject")}>Reject</button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* History Modal */}
-      {viewHistory && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
-          zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24
-        }}>
-          <div style={{
-            background: "#14141b", border: "1px solid #ffffff2e", borderRadius: 16, padding: 24,
-            width: "100%", maxWidth: 700, maxHeight: "80vh", overflow: "hidden",
-            display: "flex", flexDirection: "column"
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: "1rem" }}>{viewHistory.user.name}'s History</div>
-                <div style={{ color: "#9a9aa8", fontSize: "0.8rem" }}>{viewHistory.user.email}</div>
-              </div>
-              <button className="btn btn-ghost" onClick={() => setViewHistory(null)} style={{ padding: "6px 12px" }}>Close</button>
-            </div>
-            <div style={{ overflowY: "auto", flex: 1 }}>
-              {viewHistory.entries.length === 0 ? (
-                <p style={{ color: "#9a9aa8", textAlign: "center", padding: 32 }}>No predictions yet</p>
-              ) : (
-                <table className="data-table" style={{ width: "100%" }}>
-                  <thead>
-                    <tr>
-                      <th>Wafer ID</th><th>Defect</th><th>Confidence</th>
-                      <th>Yield</th><th>Decision</th><th>Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {viewHistory.entries.map(e => (
-                      <tr key={e.id}>
-                        <td style={{ fontSize: "0.8rem" }}>{e.wafer_id}</td>
-                        <td style={{ fontSize: "0.8rem" }}>{e.defect_type}</td>
-                        <td style={{ fontSize: "0.8rem" }}>{e.confidence.toFixed(1)}%</td>
-                        <td style={{ fontSize: "0.8rem" }}>{e.yield_pct}%</td>
-                        <td>
-                          <span className="cell-decision" style={{
-                            background: decisionBg[e.decision],
-                            color: decisionColor[e.decision],
-                            fontSize: "0.72rem"
-                          }}>
-                            {e.decision}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: "0.75rem", color: "#9a9aa8" }}>
-                          {new Date(e.timestamp).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
+      <section className="tile inbox">
+        <h2>Waiting <small className={requests.length ? "hot" : ""}>{requests.length}</small></h2>
+        <div className="inlist">
+          {requests.length === 0 && (
+            <div className="clear"><i><Icon name="check" size={30} /></i><b>All clear</b><p>New requests show up here, and also reach you by email.</p></div>
+          )}
+          <AnimatePresence initial={false}>
+            {requests.map(r => (
+              <motion.article key={r.id} className="req" layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 40 }} transition={{ duration: 0.25 }}>
+                <div className="rtop"><i>{r.name.slice(0, 1).toUpperCase()}</i><div><b>{r.name}</b><small>{r.email}</small></div><em>{ago(r.created_at)}</em></div>
+                {r.reason && <p>“{r.reason}”</p>}
+                <div className="rbtn"><button className="btn main sm" onClick={() => decide(r, "approve")}>Approve</button><button className="btn warn sm" onClick={() => decide(r, "reject")}>Reject</button></div>
+              </motion.article>
+            ))}
+          </AnimatePresence>
         </div>
-      )}
+      </section>
 
-      {/* Add User Form */}
-      {showAdd && (
-        <div className="card" style={{ marginBottom: 16, border: "2px solid #c6ff3d" }}>
-          <div className="card-title">Add New User</div>
-          <form onSubmit={handleAddUser}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div className="field">
-                <label>Name</label>
-                <input type="text" value={newUser.name} onChange={e => setNewUser(p => ({ ...p, name: e.target.value }))} required />
-              </div>
-              <div className="field">
-                <label>Email</label>
-                <input type="email" value={newUser.email} onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))} required />
-              </div>
-              <div className="field">
-                <label>Password</label>
-                <input type="password" value={newUser.password} onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))} required />
-              </div>
-              <div className="field">
-                <label>Role</label>
-                <select value={newUser.role} onChange={e => setNewUser(p => ({ ...p, role: e.target.value }))}
-                  style={{ padding: "10px 12px", border: "1px solid #ffffff2e", borderRadius: 8, fontSize: "0.9rem", width: "100%" }}>
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                </select>
+      <section className="tile roster">
+        <h2>Everyone <small>{users.length}</small><button className="btn main sm" onClick={() => setAdding(true)}>Add a person</button></h2>
+        <div className="rolist" ref={menuRef}>
+          {loading && <p className="note">Loading…</p>}
+          {users.map(u => (
+            <div key={u.id} className={"person" + (u.is_active ? "" : " off")}>
+              <i className={u.role}>{u.name.slice(0, 1).toUpperCase()}</i>
+              <div className="who2"><b>{u.name}</b><small>{u.email}</small></div>
+              <span className={"v " + (u.role === "admin" ? "review" : "mute")}>{u.role}</span>
+              <span className="sc"><b>{u.total_predictions}</b> scans</span>
+              <span className={"dot " + (u.is_active ? "on" : "")} title={u.is_active ? "Active" : "Turned off"} />
+              <div className="pm">
+                <button className="dots" aria-label={`Actions for ${u.name}`} aria-expanded={menu === u.id} onClick={() => { setMenu(menu === u.id ? null : u.id); setSure(null); }}>⋯</button>
+                {menu === u.id && (
+                  <div className="pmenu" role="menu">
+                    <button role="menuitem" onClick={() => open(u)}>See scans</button>
+                    {u.role !== "admin" && <>
+                      <button role="menuitem" onClick={() => toggle(u)}>{u.is_active ? "Turn off" : "Turn on"}</button>
+                      <button role="menuitem" className="bad" onClick={() => remove(u)}>{sure === u.id ? "Tap again to delete" : "Delete"}</button>
+                    </>}
+                  </div>
+                )}
               </div>
             </div>
-            {addError && <p style={{ color: "#ff2e93", fontSize: "0.85rem", marginTop: 8 }}>{addError}</p>}
-            <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-              <button type="submit" className="btn btn-primary" disabled={addLoading}>
-                {addLoading ? "Creating…" : "Create User"}
-              </button>
-              <button type="button" className="btn btn-ghost" onClick={() => setShowAdd(false)}>Cancel</button>
-            </div>
-          </form>
+          ))}
         </div>
-      )}
+      </section>
 
-      {/* Users Table */}
-      <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div className="card-title" style={{ marginBottom: 0 }}>All Users ({users.length})</div>
-          <button className="btn btn-primary" style={{ fontSize: "0.82rem", padding: "8px 16px" }} onClick={() => setShowAdd(v => !v)}>
-            {showAdd ? "Cancel" : "＋ Add User"}
-          </button>
-        </div>
-
-        {loading ? (
-          <p style={{ color: "#9a9aa8", fontSize: "0.85rem" }}>Loading users…</p>
-        ) : (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th><th>Email</th><th>Role</th>
-                  <th>Status</th><th>Predictions</th><th>Joined</th><th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.id}>
-                    <td style={{ fontWeight: 600 }}>{u.name}</td>
-                    <td style={{ fontSize: "0.82rem", color: "#9a9aa8" }}>{u.email}</td>
-                    <td>
-                      <span style={{
-                        background: u.role === "admin" ? "#1b1b25" : "#1b1b25",
-                        color: u.role === "admin" ? "#f4f4f0" : "#9a9aa8",
-                        padding: "3px 10px", borderRadius: 999, fontSize: "0.72rem", fontWeight: 600
-                      }}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td>
-                      <span style={{
-                        background: u.is_active ? "#1b1b25" : "#1b1b25",
-                        color: u.is_active ? "#c6ff3d" : "#ff2e93",
-                        padding: "3px 10px", borderRadius: 999, fontSize: "0.72rem", fontWeight: 600
-                      }}>
-                        {u.is_active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: "center", fontWeight: 600 }}>{u.total_predictions}</td>
-                    <td style={{ fontSize: "0.75rem", color: "#9a9aa8" }}>
-                      {new Date(u.created_at).toLocaleDateString()}
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button
-                          className="btn btn-ghost"
-                          style={{ fontSize: "0.72rem", padding: "4px 10px" }}
-                          onClick={() => handleViewHistory(u)}
-                        >
-                          History
-                        </button>
-                        {u.role !== "admin" && (
-                          <>
-                            <button
-                              className="btn btn-ghost"
-                              style={{ fontSize: "0.72rem", padding: "4px 10px" }}
-                              onClick={() => handleToggleActive(u)}
-                            >
-                              {u.is_active ? "Deactivate" : "Activate"}
-                            </button>
-                            <button
-                              className="btn btn-danger"
-                              style={{ fontSize: "0.72rem", padding: "4px 10px" }}
-                              onClick={() => handleDelete(u)}
-                            >
-                              Delete
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <AnimatePresence>
+        {(adding || view) && <motion.div key="s" className="botscrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setAdding(false); setView(null); }} />}
+        {adding && (
+          <motion.aside key="a" className="botdrawer dtl" role="dialog" aria-label="Add a person" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
+            <header><div><b>Add a person</b><small>They can sign in right away</small></div><button className="x" onClick={() => setAdding(false)}>Close</button></header>
+            <form className="addform" onSubmit={create}>
+              <div className="f"><label htmlFor="pn">Name</label><input id="pn" placeholder="Priya N" autoComplete="off" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required /></div>
+              <div className="f"><label htmlFor="pe">Email</label><input id="pe" type="email" placeholder="priya@fab.example" autoComplete="off" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} required /></div>
+              <div className="f"><label htmlFor="pp">Password</label><input id="pp" type="password" placeholder="Pick a strong one" autoComplete="new-password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} required /></div>
+              <div className="f"><label>Role</label>
+                <Select label="Role" value={form.role} onChange={(v: string) => setForm(p => ({ ...p, role: v }))} options={[{ value: "user", label: "User", sub: "Scans and sees their own history" }, { value: "admin", label: "Admin", sub: "Also approves people" }]} />
+              </div>
+              {addError && <p className="err" role="alert">{addError}</p>}
+              <button className="btn main block" disabled={busy}>{busy ? "Creating…" : "Create account"}</button>
+            </form>
+          </motion.aside>
         )}
-      </div>
-    </>
+        {view && (
+          <motion.aside key="v" className="botdrawer dtl" role="dialog" aria-label={`${view.user.name} scans`} initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
+            <header><div><b>{view.user.name}</b><small>{view.user.email}</small></div><button className="x" onClick={() => setView(null)}>Close</button></header>
+            <div className="vlist">
+              {view.entries.length === 0 && <p className="note" style={{ textAlign: "center", padding: 32 }}>No scans yet.</p>}
+              {view.entries.map(e => (
+                <div key={e.id} className="vrow"><div><b>{e.wafer_id}</b><small>{e.defect_type} · {ago(e.timestamp)}</small></div><span className="vy">{e.yield_pct}%</span><span className={"v " + e.decision.toLowerCase()}>{e.decision}</span></div>
+              ))}
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

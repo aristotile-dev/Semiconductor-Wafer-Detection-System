@@ -16,7 +16,7 @@ function paint(ctx: CanvasRenderingContext2D, name: string) {
 }
 
 /** Iridescent 3D wafer. The die map on its face follows `pattern`. The box takes the size its parent gives it. */
-export default function WaferScene({ pattern }: { pattern: string }) {
+export default function WaferScene({ pattern, live }: { pattern: string; live?: React.RefObject<HTMLCanvasElement | null> }) {
   const box = useRef<HTMLDivElement>(null);
   const repaint = useRef<(name: string) => void>(() => {});
 
@@ -63,6 +63,7 @@ export default function WaferScene({ pattern }: { pattern: string }) {
     const clock = new THREE.Clock();
     renderer.setAnimationLoop(() => {
       const t = still ? 0 : clock.getElapsedTime();
+      if (live?.current) { ctx.drawImage(live.current, 0, 0, SIZE, SIZE); tex.needsUpdate = true; }
       group.rotation.y += ((mx * 0.5) - group.rotation.y) * 0.05;
       group.rotation.x += ((my * 0.35) - group.rotation.x) * 0.05;
       wafer.rotation.y = t * 0.22;

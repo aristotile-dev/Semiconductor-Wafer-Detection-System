@@ -1,117 +1,69 @@
-import { useRef, useState } from "react";
-import PageHeader from "../components/PageHeader";
+import { useEffect, useState } from "react";
+import RunSettings from "../components/RunSettings";
 import ResultPanel from "../components/ResultPanel";
+import WaferDrop, { makeSample } from "../components/WaferDrop";
+import IdleStage from "../components/IdleStage";
 import { predictImage, saveHistory, PredictResult } from "../api/client";
 import { useHistory } from "../context/HistoryContext";
 
-interface Props { waferId: string; dieArea: number; }
+interface Props { waferId: string; dieArea: number; onWaferIdChange: (v: string) => void; onDieAreaChange: (v: number) => void; }
 
-export default function Prediction({ waferId, dieArea }: Props) {
-  const [file, setFile]       = useState<File | null>(null);
-  const [preview, setPreview] = useState<string>("");
+export default function Prediction({ waferId, dieArea, onWaferIdChange, onDieAreaChange }: Props) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult]   = useState<PredictResult | null>(null);
-  const [error, setError]     = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [result, setResult] = useState<PredictResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const { addEntry } = useHistory();
 
-  const handleFile = (f: File) => {
-    setFile(f); setPreview(URL.createObjectURL(f));
-    setResult(null); setError(null);
-  };
+  useEffect(() => {
+    if (!file) { setPreview(""); return; }
+    const u = URL.createObjectURL(file); setPreview(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
 
-  const clearImage = () => {
-    setFile(null); setPreview(""); setResult(null); setError(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const isInvalidInput = error?.toLowerCase().includes("invalid input");
-
-  const onRun = async () => {
-    if (!file) return;
+  const run = async (f: File | null = file) => {
+    if (!f) return;
     setLoading(true); setError(null);
     try {
-      const r = await predictImage(file, dieArea);
-      setResult(r);
-      addEntry(waferId, r);
-      // Save to backend DB
-      await saveHistory({
-        wafer_id: waferId, defect_type: r.defect_type,
-        confidence: r.confidence, yield_pct: r.yield_pct,
-        decision: r.decision, defect_ratio: r.defect_ratio
-      });
+      const r = await predictImage(f, dieArea);
+      setResult(r); addEntry(waferId, r);
+      await saveHistory({ wafer_id: waferId, defect_type: r.defect_type, confidence: r.confidence, yield_pct: r.yield_pct, decision: r.decision, defect_ratio: r.defect_ratio });
     } catch (e: any) {
-      setError(e?.response?.data?.detail || e?.message || "Prediction failed");
-    } finally {
-      setLoading(false);
-    }
+      setError(e?.response?.data?.detail || e?.message || "The scan failed. Try another image.");
+    } finally { setLoading(false); }
   };
 
+  const pick = (f: File, sample?: boolean) => { setFile(f); setResult(null); setError(null); if (sample) run(f); };
+  const clear = () => { setFile(null); setResult(null); setError(null); };
+
   return (
-    <>
-      <PageHeader
-        title="Scan a wafer"
-        subtitle="Upload a wafer map. You get the defect pattern, the yield and a verdict, with an expert explanation."
-      />
-      <div className="grid-2">
-        <div className="card">
-          <div className="card-title">Upload Wafer Image</div>
-          <div
-            className={`dropzone ${file ? "has-file" : ""}`}
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={e => e.preventDefault()}
-            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
-          >
-            <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/jpg"
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-            {!file ? (
-              <>
-                <div style={{ fontSize: "2rem", marginBottom: 6 }}></div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>Drop a wafer image here</div>
-                <div className="dropzone-hint">PNG · JPG · JPEG — click or drag</div>
-              </>
-            ) : (
-              <>
-                <img src={preview} alt="preview" className="preview-img" />
-                <div className="dropzone-hint mt-1">{file.name}</div>
-              </>
-            )}
-          </div>
-
-          <button className="btn btn-primary btn-block mt-2" onClick={onRun} disabled={!file || loading}>
-            {loading ? <><span className="spinner" /> Analyzing…</> : "Run Prediction"}
-          </button>
-
-          {result && !error && (
-            <button className="btn btn-ghost btn-block mt-1" onClick={clearImage} style={{ fontSize: "0.82rem" }}>
-              Clear Image
-            </button>
-          )}
-
-          {error && (
-            <div style={{ marginTop: 10 }}>
-              <p style={{ color: "#ff2e93", fontSize: "0.85rem" }}>{error}</p>
-              {isInvalidInput && (
-                <button className="btn btn-ghost mt-1" onClick={clearImage} style={{ fontSize: "0.82rem", padding: "7px 14px" }}>
-                  Clear Image
-                </button>
-              )}
+    <div className={"scanpage" + (result ? " done" : "")}>
+      <section className="left">
+        <div className="titleblock">
+          <h1 className="one"><span>Scan </span><em>a wafer.</em></h1>
+        </div>
+        <WaferDrop file={file} preview={preview} busy={loading} onPick={pick} />
+        <div className="info2">
+          <div className="bot2">
+            <div className="capline">
+              <span>{file ? file.name : "No file yet"}</span>
+              <button type="button" onClick={async () => pick(await makeSample(), true)}>Try a sample wafer</button>
             </div>
-          )}
-
-          <div className="mt-3" style={{ fontSize: "0.78rem", color: "#9a9aa8" }}>
-            Wafer ID: <strong>{waferId}</strong> &nbsp;·&nbsp;
-            Die Area: <strong>{dieArea.toFixed(1)} cm²</strong>
+            <div className="acts">
+              <button className="btn main" onClick={() => run()} disabled={!file || loading}>
+                {loading ? <><i className="spin" /> Scanning</> : "Scan wafer"}
+              </button>
+              {file && !loading && <button className="btn" onClick={clear}>Clear</button>}
+            </div>
+            {error && <p className="err" role="alert">{error}</p>}
           </div>
         </div>
-
-        <div>
-          {result
-            ? <ResultPanel result={result} />
-            : <div className="card"><div className="empty-state">Results will appear here after you run a prediction.</div></div>
-          }
-        </div>
+      </section>
+      <div className="setrow">
+        <RunSettings waferId={waferId} dieArea={dieArea} onWaferIdChange={onWaferIdChange} onDieAreaChange={onDieAreaChange} />
       </div>
-    </>
+      {result ? <ResultPanel result={result} variant="scan" /> : <IdleStage />}
+    </div>
   );
 }

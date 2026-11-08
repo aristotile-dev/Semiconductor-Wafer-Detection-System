@@ -1,111 +1,168 @@
-import { useEffect, useState } from "react";
-import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceLine, Legend, Area, ComposedChart, BarChart, Bar, Cell
-} from "recharts";
-import PageHeader from "../components/PageHeader";
+import { useMemo } from "react";
+import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ComposedChart, Line, AreaChart, Area } from "recharts";
+import Tip from "../components/Tip";
 import { useHistory } from "../context/HistoryContext";
-import { yieldCurve, YieldPoint } from "../api/client";
+import { murphy } from "../lib/patterns";
 
-interface Props { dieArea: number; }
+interface Props { dieArea: number; onDieAreaChange: (v: number) => void; }
+interface Scan { n: number; y: number; pattern: string; ratio: number; }
 
-export default function YieldAnalysis({ dieArea }: Props) {
-  const { history } = useHistory();
-  const [curve, setCurve] = useState<YieldPoint[]>([]);
-  const [loading, setLoading] = useState(false);
+const verdictOf = (y: number) => (y >= 70 ? "save" : y >= 40 ? "review" : "scrap");
+const COLOR = { save: "#c6ff3d", review: "#ffd23d", scrap: "#ff2e93" } as const;
 
-  const last = history[history.length - 1];
-
-  useEffect(() => {
-    if (!last) return;
-    setLoading(true);
-    yieldCurve(last.defectRatio)
-      .then(setCurve)
-      .finally(() => setLoading(false));
-  }, [last?.defectRatio]);
-
-  if (!last) {
-    return (
-      <>
-        <PageHeader title="Yield Analysis" subtitle="Murphy yield curves across die area" />
-        <div className="card"><div className="empty-state">Run at least one prediction to see yield analysis.</div></div>
-      </>
-    );
-  }
-
-  // Average yield grouped by defect type
-  const byDefect: Record<string, { sum: number; count: number }> = {};
-  history.forEach(h => {
-    if (!byDefect[h.defect]) byDefect[h.defect] = { sum: 0, count: 0 };
-    byDefect[h.defect].sum   += h.yieldPct;
-    byDefect[h.defect].count += 1;
+/** Synthetic scans shown before the user has any history. They are labelled as an example on the page. */
+function exampleScans(): Scan[] {
+  const names = ["Donut", "Edge-ring", "Center", "Scratch", "Loc", "None", "Edge-loc", "Random", "Near-full"];
+  return Array.from({ length: 28 }, (_, i) => {
+    const wobble = Math.sin(i * 0.9) * 5 + Math.cos(i * 2.3) * 3;
+    let y = 87 + wobble;
+    if (i === 11) y = 58;
+    if (i === 22) y = 46;
+    y = Math.round(Math.min(99, y) * 10) / 10;
+    return { n: i + 1, y, pattern: names[i % names.length], ratio: Math.max(0.01, -Math.log(y / 100) / 2.2) };
   });
-  const avgData = Object.entries(byDefect).map(([d, v]) => ({
-    defect: d,
-    avg: Math.round((v.sum / v.count) * 100) / 100
-  }));
+}
+
+export default function YieldAnalysis({ dieArea, onDieAreaChange }: Props) {
+  const { history } = useHistory();
+  const example = history.length < 5;
+
+  const scans = useMemo<Scan[]>(() => {
+    if (example) return exampleScans();
+    return history.slice(-40).map((h, i) => ({ n: i + 1, y: h.yieldPct, pattern: h.defect, ratio: h.defectRatio }));
+  }, [history, example]);
+
+  const stats = useMemo(() => {
+    const ys = scans.map(s => s.y);
+    const mean = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const sd = Math.sqrt(ys.reduce((a, b) => a + (b - mean) ** 2, 0) / ys.length);
+    const ucl = Math.min(100, mean + 2 * sd), lcl = Math.max(0, mean - 2 * sd);
+    const out = scans.filter(s => s.y > ucl || s.y < lcl).length;
+    const saveRate = Math.round((ys.filter(y => y >= 70).length / ys.length) * 100);
+    return { mean, sd, ucl, lcl, out, saveRate, latest: ys[ys.length - 1] };
+  }, [scans]);
+
+  const rank = useMemo(() => {
+    const by: Record<string, { sum: number; n: number }> = {};
+    scans.forEach(s => { (by[s.pattern] ??= { sum: 0, n: 0 }); by[s.pattern].sum += s.y; by[s.pattern].n++; });
+    return Object.entries(by).map(([name, v]) => ({ name, avg: v.sum / v.n, n: v.n })).sort((a, b) => b.avg - a.avg);
+  }, [scans]);
+
+  const avgRatio = scans.reduce((a, s) => a + s.ratio, 0) / scans.length;
+  const whatIf = useMemo(() => {
+    const pts: { a: number; y: number }[] = [];
+    for (let a = 0.1; a <= 2.001; a += 0.1) pts.push({ a: Math.round(a * 10) / 10, y: murphy(avgRatio * (a / 0.5)) });
+    return pts;
+  }, [avgRatio]);
+  const whatNow = murphy(avgRatio * (dieArea / 0.5));
+
+  const mix = useMemo(() => ({
+    save: scans.filter(s => s.y >= 70).length,
+    review: scans.filter(s => s.y >= 40 && s.y < 70).length,
+    scrap: scans.filter(s => s.y < 40).length
+  }), [scans]);
+
+  // The y axis starts just below the lowest dot or limit instead of at zero, so the plot is not half empty.
+  const lo = Math.max(0, Math.floor((Math.min(stats.lcl, ...scans.map(s => s.y)) - 8) / 10) * 10);
+  const yTicks = [lo, 40, 70, 100].filter((t, i, a) => t >= lo && a.indexOf(t) === i);
+
+  const v = verdictOf(stats.mean);
+  const tag = example ? "Example data" : `Last ${scans.length} scans`;
 
   return (
-    <>
-      <PageHeader
-        title="Yield Analysis"
-        subtitle={`Last prediction · Defect: ${last.defect} · Yield: ${last.yieldPct}%`}
-      />
+    <div className="yieldpage">
+      <section className="yleft">
+        <h1 className="one"><span>Catch </span><em>dips.</em></h1>
 
-      <div className="card">
-        <div className="card-title">Murphy Yield Curve — {last.defect}</div>
-        {loading ? (
-          <div className="empty-state">Computing curve…</div>
-        ) : (
-          <div style={{ width: "100%", height: 320 }}>
-            <ResponsiveContainer>
-              <ComposedChart data={curve} margin={{ top: 10, right: 24, left: 4, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff2e" />
-                <XAxis dataKey="die_area" tick={{ fontSize: 11, fill: "#9a9aa8" }}
-                       label={{ value: "Die Area (cm²)", position: "insideBottom", offset: -2, fontSize: 11, fill: "#9a9aa8" }} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#9a9aa8" }}
-                       label={{ value: "Yield (%)", angle: -90, position: "insideLeft", fontSize: 11, fill: "#9a9aa8" }} />
-                <Tooltip
-                  formatter={(v: number) => `${v}%`}
-                  contentStyle={{ borderRadius: 8, border: "1px solid #ffffff2e", fontSize: 12 }}
-                />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Area type="monotone" dataKey="yield_pct" stroke="none" fill="#c6ff3d" fillOpacity={0.08} />
-                <Line type="monotone" dataKey="yield_pct" name="Yield" stroke="#c6ff3d" strokeWidth={2.5} dot={false} />
-                <ReferenceLine y={70} stroke="#c6ff3d" strokeDasharray="4 4" label={{ value: "70% Save", position: "right", fontSize: 10, fill: "#c6ff3d" }} />
-                <ReferenceLine y={40} stroke="#ffd23d" strokeDasharray="4 4" label={{ value: "40% Min", position: "right", fontSize: 10, fill: "#ffd23d" }} />
-                <ReferenceLine x={dieArea} stroke="#ff2e93" strokeWidth={2} label={{ value: `${dieArea} cm²`, position: "top", fontSize: 10, fill: "#ff2e93" }} />
-              </ComposedChart>
-            </ResponsiveContainer>
+        <div className="tile avgtile">
+          <div className="avgtop">
+            <h2>Average yield <small>{tag}</small></h2>
+            <div className="dieval"><b style={{ color: COLOR[v] }}>{stats.mean.toFixed(1)}</b><span>%</span></div>
+            <p className="avgsub">{scans.length} scans. Spread of {stats.sd.toFixed(1)} points either side. {example ? "Scan five wafers and this becomes your own process." : ""}</p>
           </div>
-        )}
-      </div>
-
-      {avgData.length > 1 && (
-        <div className="card">
-          <div className="card-title">Average Yield by Defect Type</div>
-          <div style={{ width: "100%", height: 280 }}>
-            <ResponsiveContainer>
-              <BarChart data={avgData} margin={{ top: 10, right: 16, left: 4, bottom: 24 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff2e" />
-                <XAxis dataKey="defect" tick={{ fontSize: 11, fill: "#ffffff2e" }} angle={-25} textAnchor="end" height={50} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#9a9aa8" }} />
-                <Tooltip
-                  formatter={(v: number) => `${v}%`}
-                  contentStyle={{ borderRadius: 8, border: "1px solid #ffffff2e", fontSize: 12 }}
-                />
-                <ReferenceLine y={70} stroke="#c6ff3d" strokeDasharray="4 4" />
-                <ReferenceLine y={40} stroke="#ffd23d" strokeDasharray="4 4" />
-                <Bar dataKey="avg" radius={[6, 6, 0, 0]}>
-                  {avgData.map((d, i) => (
-                    <Cell key={i} fill={d.avg >= 70 ? "#c6ff3d" : d.avg >= 40 ? "#ffd23d" : "#ff2e93"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="avgbot">
+            <div className="lvls" aria-label="Scans per verdict level">
+              {([["SAVE", "save", mix.save], ["REVIEW", "review", mix.review], ["SCRAP", "scrap", mix.scrap]] as const).map(([name, k, n]) => (
+                <div key={name} className={"lv " + k}>
+                  <span>{name}</span>
+                  <div className="track"><i style={{ width: `${(n / scans.length) * 100}%` }} /></div>
+                  <b>{n}</b><em>{Math.round((n / scans.length) * 100)}%</em>
+                </div>
+              ))}
+            </div>
+            <div className="bw">
+              <div><span>Strongest pattern</span><b>{rank[0].name} <em>{rank[0].avg.toFixed(0)}%</em></b></div>
+              <div><span>Weakest pattern</span><b>{rank[rank.length - 1].name} <em>{rank[rank.length - 1].avg.toFixed(0)}%</em></b></div>
+            </div>
           </div>
         </div>
-      )}
-    </>
+
+        <section className="facts three" aria-label="Process summary">
+          <div><span>SAVE rate</span><b>{stats.saveRate}%</b></div>
+          <div className={stats.out ? "hl scrap" : "hl save"}><span>Outside limits</span><b>{stats.out}</b></div>
+          <div><span>Latest scan</span><b>{stats.latest.toFixed(1)}%</b></div>
+        </section>
+      </section>
+
+      <section className="tile ychart">
+        <h2>Yield per scan <span className="key2"><span><i className="ok" />on track</span><span><i className="off" />off track</span></span></h2>
+        <div className="chartfill">
+          <ResponsiveContainer>
+            <ComposedChart data={scans} margin={{ top: 16, right: 18, left: -8, bottom: 6 }}>
+              <CartesianGrid stroke="#ffffff10" vertical={false} />
+              <XAxis dataKey="n" type="number" domain={[1, scans.length]} allowDecimals={false} tickLine={false} axisLine={{ stroke: "#ffffff2e" }} />
+              <YAxis domain={[lo, 100]} ticks={yTicks} tickLine={false} axisLine={false} unit="%" />
+              <Tooltip content={<Tip unit="%" />} cursor={{ stroke: "#ffffff33" }} />
+              {lo < 70 && <ReferenceLine y={70} stroke="#ffffff18" label={{ value: "SAVE 70", position: "insideBottomRight", fill: "#9a9aa8", fontSize: 10 }} />}
+              {lo < 40 && <ReferenceLine y={40} stroke="#ffffff18" label={{ value: "REVIEW 40", position: "insideBottomRight", fill: "#9a9aa8", fontSize: 10 }} />}
+              <ReferenceLine y={stats.ucl} stroke="#c6ff3d" strokeDasharray="5 5" label={{ value: `UPPER ${stats.ucl.toFixed(0)}`, position: "insideTopRight", fill: "#c6ff3d", fontSize: 11 }} />
+              <ReferenceLine y={stats.lcl} stroke="#c6ff3d" strokeDasharray="5 5" label={{ value: `LOWER ${stats.lcl.toFixed(0)}`, position: "insideBottomRight", fill: "#c6ff3d", fontSize: 11 }} />
+              <ReferenceLine y={stats.mean} stroke="#f4f4f0" strokeWidth={1.5} label={{ value: `MEAN ${stats.mean.toFixed(1)}`, position: "insideTopLeft", fill: "#f4f4f0", fontSize: 11 }} />
+              <Line type="linear" dataKey="y" name="Yield" stroke="#ffffff30" strokeWidth={1.5} isAnimationActive={false}
+                dot={(p: any) => {
+                  const out = p.payload.y > stats.ucl || p.payload.y < stats.lcl;
+                  return out
+                    ? <g key={p.index}><circle cx={p.cx} cy={p.cy} r={10} fill="none" stroke="#ff2e93" strokeWidth={1.5} /><circle cx={p.cx} cy={p.cy} r={5.5} fill="#ff2e93" /></g>
+                    : <circle key={p.index} cx={p.cx} cy={p.cy} r={4.5} fill="#c6ff3d" />;
+                }}
+                activeDot={{ r: 7, fill: "#f4f4f0", stroke: "#0a0a0f", strokeWidth: 2 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      <section className="tile yavg">
+        <h2>Which patterns cost yield <small>ranked by average</small></h2>
+        <div className="rank">
+          {rank.map(r => {
+            const k = verdictOf(r.avg);
+            return (
+              <div key={r.name} className="rk">
+                <span className="nm">{r.name}</span>
+                <div className="bar"><i style={{ width: `${Math.max(2, r.avg)}%`, background: COLOR[k] }} /></div>
+                <b style={{ color: COLOR[k] }}>{r.avg.toFixed(0)}%</b>
+                <em>{r.n}</em>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="tile ywhat">
+        <h2>What if the die were bigger? <small>drag the slider</small></h2>
+        <p className="whatsay">At <b>{dieArea.toFixed(1)} cm²</b> the same defects would give about <b style={{ color: COLOR[verdictOf(whatNow)] }}>{whatNow}%</b> yield.</p>
+        <div className="whatchart">
+          <ResponsiveContainer>
+            <AreaChart data={whatIf} margin={{ top: 6, right: 6, left: -22, bottom: 0 }}>
+              <XAxis dataKey="a" type="number" domain={[0.1, 2]} ticks={[0.1, 1, 2]} tickLine={false} axisLine={false} tickFormatter={(x: number) => x.toFixed(1)} />
+              <YAxis domain={[0, 100]} ticks={[0, 100]} tickLine={false} axisLine={false} />
+              <ReferenceLine x={dieArea} stroke="#ff2e93" strokeWidth={2} />
+              <Area type="monotone" dataKey="y" stroke="#c6ff3d" strokeWidth={2} fill="#c6ff3d" fillOpacity={0.1} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <input type="range" min={0.1} max={2} step={0.1} value={dieArea} onChange={e => onDieAreaChange(parseFloat(e.target.value))} aria-label="Die area in square centimetres" />
+      </section>
+    </div>
   );
 }

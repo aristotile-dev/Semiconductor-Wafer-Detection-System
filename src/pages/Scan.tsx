@@ -1,115 +1,109 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import TopNav from "../components/TopNav";
+import DieStage from "../components/DieStage";
+import DieMap from "../components/DieMap";
+import Icon from "../components/Icons";
+import { makeSample } from "../components/WaferDrop";
 import { predictGuest, PredictResult } from "../api/client";
-import { PATTERN_NAMES, dieMap } from "../lib/patterns";
+import { PATTERN_NAMES } from "../lib/patterns";
 import "../styles/landing.css";
 import "../styles/public.css";
+import "../styles/app.css";
 
-/** Draw a die map to a canvas. Used for the result thumbnail and to build the sample wafer image. */
-function drawMap(c: HTMLCanvasElement, name: string, bg = "#14141b") {
-  const g = c.getContext("2d")!, n = 25, s = c.width / n;
-  g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
-  for (const d of dieMap(name, n).dies) {
-    g.fillStyle = d.bad ? "#ff2e93" : "#2a2a36";
-    g.fillRect(d.i * s + 1, d.j * s + 1, s - 2, s - 2);
-  }
-}
+const COLOR = { save: "#c6ff3d", review: "#ffd23d", scrap: "#ff2e93" } as const;
 
-function sampleFile(): Promise<File> {
-  const name = PATTERN_NAMES[Math.floor(Math.random() * 8)]; // skip "None" so the sample shows something
-  const c = document.createElement("canvas"); c.width = c.height = 256;
-  drawMap(c, name, "#0d0d13");
-  return new Promise(res => c.toBlob(b => res(new File([b!], `sample-${name.toLowerCase()}.png`, { type: "image/png" })), "image/png"));
-}
-
-function MapThumb({ name }: { name: string }) {
-  const c = useRef<HTMLCanvasElement>(null);
-  useEffect(() => { if (c.current) drawMap(c.current, name); }, [name]);
-  return <canvas ref={c} className="map" width={400} height={400} role="img" aria-label={`Die map for ${name}`} />;
-}
-
+/**
+ * Public guest scan. Most visitors have no wafer map, so the nine patterns are tappable samples
+ * and a result is already on screen when the page opens.
+ */
 export default function Scan() {
   const loc = useLocation();
   const [params] = useSearchParams();
   const input = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>((loc.state as any)?.file ?? null);
-  const [preview, setPreview] = useState("");
+  const [res, setRes] = useState<PredictResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [res, setRes] = useState<PredictResult | null>(null);
-  const [isSample, setIsSample] = useState(false);
+  const [picked, setPicked] = useState<string>("Edge-loc");
+  const [own, setOwn] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+  const run = useRef(0);
 
-  useEffect(() => {
-    if (!file) { setPreview(""); return; }
-    const u = URL.createObjectURL(file); setPreview(u); return () => URL.revokeObjectURL(u);
-  }, [file]);
-
-  const run = async (f: File) => {
-    setBusy(true); setErr(null); setRes(null);
-    try { setRes(await predictGuest(f)); }
-    catch (e: any) { setErr(e?.response?.data?.detail || "The scan failed. Try another image."); }
-    finally { setBusy(false); }
+  const scan = async (f: File, label: string, isOwn: boolean) => {
+    const id = ++run.current;
+    setBusy(true); setErr(null); setPicked(isOwn ? "" : label); setOwn(isOwn ? f.name : null);
+    try {
+      const r = await predictGuest(f);
+      if (id === run.current) setRes(r);
+    } catch (e: any) {
+      if (id === run.current) setErr(e?.response?.data?.detail || "The scan failed. Try another wafer.");
+    } finally { if (id === run.current) setBusy(false); }
   };
 
-  const useSample = async () => { const f = await sampleFile(); setIsSample(true); setFile(f); run(f); };
+  const sample = async (name: string) => scan(await makeSample(name), name, false);
+  const mine = (f?: File | null) => { if (f) scan(f, "", true); };
 
   useEffect(() => {
-    if (params.get("sample")) useSample();
-    else if (file) run(file);
+    const f = (loc.state as any)?.file as File | undefined;
+    if (f) mine(f); else sample(params.get("p") && PATTERN_NAMES.includes(params.get("p")!) ? params.get("p")! : "Edge-loc");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const pick = (f?: File | null) => { if (f) { setIsSample(false); setFile(f); run(f); } };
-  const verdict = res?.decision.toLowerCase();
+  const v = res ? (res.decision.toLowerCase() as keyof typeof COLOR) : "save";
 
   return (
     <div className="landing">
       <div className="grain" />
       <TopNav />
-      <main className="pub">
-        <div className="scan">
-          <div>
-            <h1><span className="ln">Scan</span><span className="ln a">a wafer.</span></h1>
-            <p className="lead">Upload a wafer map image. You get the pattern, the yield and a verdict in a few seconds. No account needed.</p>
+      <div className="app gst" role="main"
+        onDragOver={e => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+        onDrop={e => { e.preventDefault(); setOver(false); mine(e.dataTransfer.files?.[0]); }}>
+        <section className="gl">
+          <h1 className="one"><span>Try </span><em>it now.</em></h1>
+          <p className="gsub">No account. Tap a wafer, or drop your own map.</p>
 
-            <div className="drop" role="button" tabIndex={0}
-              onClick={() => input.current?.click()}
-              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") input.current?.click(); }}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => { e.preventDefault(); pick(e.dataTransfer.files?.[0]); }}>
-              <input ref={input} type="file" accept="image/png,image/jpeg" hidden onChange={e => pick(e.target.files?.[0])} />
-              {preview ? <><img src={preview} alt="Your wafer map" /><span>{file?.name}{isSample ? " (sample)" : ""}</span></>
-                       : <><b>Drop a wafer map here</b><span>PNG or JPG, or click to choose</span></>}
-            </div>
-            <div className="acts">
-              <button className="btn" onClick={useSample} disabled={busy}>Try a sample wafer</button>
-              {file && <button className="btn" onClick={() => { setFile(null); setRes(null); setErr(null); }}>Clear</button>}
-            </div>
-            {err && <p className="err" style={{ marginTop: 16 }}>{err}</p>}
+          <div className="gchips" role="group" aria-label="Sample wafers">
+            {PATTERN_NAMES.map(n => (
+              <button key={n} className={"gc" + (picked === n ? " on" : "")} aria-pressed={picked === n} onClick={() => sample(n)} disabled={busy && picked === n}>
+                <span className="gcw"><DieMap name={n} className="gcm" /></span>
+                <b>{n}</b>
+              </button>
+            ))}
           </div>
 
-          <div>
-            {busy && <div className="empty">Reading the die map…</div>}
-            {!busy && !res && !err && <div className="empty">Your result shows up here.</div>}
-            {res && !busy && (
-              <div className="result">
-                <MapThumb name={res.defect_type} />
-                <div className="rows">
-                  <div className="row"><span className="k">Pattern</span><span className="v">{res.defect_type}</span></div>
-                  <div className="row"><span className="k">Confidence</span><span className="v">{res.confidence.toFixed(1)}%</span></div>
-                  <div className="row"><span className="k">Yield</span><span className="v">{res.yield_pct.toFixed(1)}%</span></div>
-                  <div className="row verdict"><span className="k">Verdict</span><span className={"v " + verdict}>{res.decision}</span></div>
+          <input ref={input} type="file" accept="image/png,image/jpeg" hidden onChange={e => { mine(e.target.files?.[0]); e.target.value = ""; }} />
+          <button className={"gown" + (own ? " on" : "") + (over ? " over" : "")} onClick={() => input.current?.click()}>
+            <Icon name="up" size={22} /><span><b>{own ? own : "Drop your own wafer map"}</b><small>{own ? "Your image. Tap to pick another." : "PNG or JPG. Or drag it anywhere on this page."}</small></span>
+          </button>
+          {err && <p className="err" role="alert">{err}</p>}
+        </section>
+
+        <div className="gstage">
+          {res ? (
+            <div className={"gbox" + (busy ? " busy" : "")}>
+              <DieStage name={res.defect_type} replay={res.yield_pct + res.defect_type + (busy ? "b" : "")} className={"v-" + v}>
+                <div className={"read " + v}>
+                  <div className="num">{res.yield_pct.toFixed(res.yield_pct % 1 ? 1 : 0)}<sup>%</sup></div>
+                  <span className={"sticker " + v}>{res.decision}</span>
                 </div>
-                <div className="upsell">
-                  <p>Want expert analysis, batch scans, drawing a map and a history of every wafer? Ask for access.</p>
-                  <Link className="btn main" to="/request" style={{ display: "inline-flex" }}>Request access</Link>
-                </div>
-              </div>
-            )}
-          </div>
+              </DieStage>
+              <i className="gsweep" aria-hidden="true" />
+            </div>
+          ) : <div className="gbox idle" aria-busy="true" />}
         </div>
-      </main>
+
+        <aside className="tile gup">
+          <h2>Want the rest?</h2>
+          <p>Scan ten wafers at once, draw your own defect, keep a history of every scan, export reports and ask the expert bot.</p>
+          <div className="gbtn"><Link className="btn main" to="/request">Request access</Link><Link className="btn" to="/login">Sign in</Link></div>
+        </aside>
+
+        <section className="facts gfacts" aria-label="Scan result">
+          <div><span>Pattern</span><b>{res ? res.defect_type : "–"}</b></div>
+          <div><span>Confidence</span><b>{res ? res.confidence.toFixed(1) + "%" : "–"}</b></div>
+          <div><span>Dies affected</span><b>{res ? (res.defect_ratio * 100).toFixed(1) + "%" : "–"}</b></div>
+        </section>
+      </div>
     </div>
   );
 }

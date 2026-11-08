@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
-import Sidebar from "./components/Sidebar";
+import AppShell from "./components/AppShell";
 import Prediction from "./pages/Prediction";
 import BatchPrediction from "./pages/BatchPrediction";
 import DrawMode from "./pages/DrawMode";
@@ -58,27 +58,17 @@ export default function App() {
       <Route path="/login" element={token ? <Navigate to="/app" replace /> : <Login />} />
       <Route path="/app/*" element={
         <AuthGuard>
-          <div className="app-shell">
-            <Sidebar
-              waferId={waferId}
-              dieArea={dieArea}
-              onWaferIdChange={setWaferId}
-              onDieAreaChange={setDieArea}
-              user={user}
-              onLogout={handleLogout}
-            />
-            <main className="main-area">
-              <Routes>
-                <Route path="/"        element={<Prediction waferId={waferId} dieArea={dieArea} />} />
-                <Route path="batch"    element={<BatchPrediction dieArea={dieArea} />} />
-                <Route path="draw"     element={<DrawMode waferId={waferId} dieArea={dieArea} />} />
-                <Route path="yield"    element={<YieldAnalysis dieArea={dieArea} />} />
-                <Route path="history"  element={<History />} />
-                <Route path="reports"  element={<Reports />} />
-                <Route path="users"    element={<AdminGuard><UserManagement /></AdminGuard>} />
-              </Routes>
-            </main>
-          </div>
+          <AppShell user={user} onLogout={handleLogout}>
+            <Routes>
+              <Route path="/"        element={<Prediction waferId={waferId} dieArea={dieArea} onWaferIdChange={setWaferId} onDieAreaChange={setDieArea} />} />
+              <Route path="batch"    element={<BatchPrediction dieArea={dieArea} onDieAreaChange={setDieArea} />} />
+              <Route path="draw"     element={<DrawMode waferId={waferId} dieArea={dieArea} onWaferIdChange={setWaferId} onDieAreaChange={setDieArea} />} />
+              <Route path="yield"    element={<YieldAnalysis dieArea={dieArea} onDieAreaChange={setDieArea} />} />
+              <Route path="history"  element={<History />} />
+              <Route path="reports"  element={<Reports />} />
+              <Route path="users"    element={<AdminGuard><UserManagement /></AdminGuard>} />
+            </Routes>
+          </AppShell>
         </AuthGuard>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />

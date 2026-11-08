@@ -1,307 +1,198 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import Icon from "./Icons";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid
-} from "recharts";
 import type { PredictResult } from "../api/client";
 import { explain, chat } from "../api/client";
+import DieStage from "./DieStage";
+const WaferScene = lazy(() => import("./WaferScene"));
 
-interface Props { result: PredictResult; }
+interface Props { result: PredictResult; variant?: "stack" | "scan"; liveSource?: React.RefObject<HTMLCanvasElement | null>; }
 interface ChatMsg { role: "user" | "assistant"; content: string; }
 
-const decisionColor: Record<string, string> = {
-  SAVE:   "#c6ff3d",
-  REVIEW: "#ffd23d",
-  SCRAP:  "#ff2e93"
-};
+const COLOR = { save: "#c6ff3d", review: "#ffd23d", scrap: "#ff2e93" } as const;
 
-function formatExplanation(text: string) {
-  const lines = text.split("\n").filter(l => l.trim() !== "");
-  return lines.map((line, i) => {
-    const isHeading = /^step\s*\d+:/i.test(line.trim());
-    if (isHeading) {
-      return (
-        <p key={i} style={{ fontWeight: 700, marginTop: i === 0 ? 0 : 12, marginBottom: 2, color: "#f4f4f0" }}>
-          {line.trim()}
-        </p>
-      );
-    }
-    return <p key={i} style={{ margin: "0 0 4px 0" }}>{line.trim()}</p>;
-  });
+function Explanation({ text }: { text: string }) {
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+  return <div className="say">{lines.map((l, i) => <p key={i} className={/^step\s*\d+:/i.test(l) ? "h" : ""}>{l}</p>)}</div>;
 }
 
-export default function ResultPanel({ result }: Props) {
-  const [expl, setExpl]           = useState<string>("");
-  const [loading, setLoading]     = useState(false);
-  const [err, setErr]             = useState<string | null>(null);
-  const [chatOpen, setChatOpen]   = useState(false);
-  const [messages, setMessages]   = useState<ChatMsg[]>([]);
-  const [input, setInput]         = useState("");
+export default function ResultPanel({ result, variant = "stack", liveSource }: Props) {
+  const [expl, setExpl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [input, setInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
-  const [showGradcam, setShowGradcam] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [showCam, setShowCam] = useState(false);
+  const logRef = useRef<HTMLDivElement>(null);
+
+  const ctx = { defect_type: result.defect_type, confidence: result.confidence, yield_pct: result.yield_pct, decision: result.decision };
 
   useEffect(() => {
-    let cancelled = false;
-    setExpl(""); setErr(null); setLoading(true);
-    setChatOpen(false); setMessages([]);
-    setShowGradcam(false);
-    explain({
-      defect_type: result.defect_type,
-      confidence:  result.confidence,
-      yield_pct:   result.yield_pct,
-      decision:    result.decision
-    })
-      .then(text => { if (!cancelled) setExpl(text); })
-      .catch(e => { if (!cancelled) setErr(e?.response?.data?.detail || "Expert analysis unavailable."); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    let off = false;
+    setExpl(""); setErr(null); setLoading(true); setChatOpen(false); setMessages([]); setShowCam(false);
+    explain(ctx)
+      .then(t => { if (!off) setExpl(t); })
+      .catch(e => { if (!off) setErr(e?.response?.data?.detail || "Expert analysis is not available right now."); })
+      .finally(() => { if (!off) setLoading(false); });
+    return () => { off = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, chatLoading]);
+  useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" }); }, [messages, chatLoading]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || chatLoading) return;
-    const userMsg: ChatMsg = { role: "user", content: input.trim() };
-    const newHistory = [...messages, userMsg];
-    setMessages(newHistory);
-    setInput("");
-    setChatLoading(true);
+  const sendText = async (q: string) => {
+    q = q.trim(); if (!q || chatLoading) return;
+    const next: ChatMsg[] = [...messages, { role: "user", content: q }];
+    setMessages(next); setInput(""); setChatLoading(true);
     try {
-      const reply = await chat({
-        message: userMsg.content,
-        context: {
-          defect_type: result.defect_type,
-          confidence:  result.confidence,
-          yield_pct:   result.yield_pct,
-          decision:    result.decision
-        },
-        history: messages
-      });
-      setMessages([...newHistory, { role: "assistant", content: reply }]);
+      const reply = await chat({ message: q, context: ctx, history: messages });
+      setMessages([...next, { role: "assistant", content: reply }]);
     } catch {
-      setMessages([...newHistory, { role: "assistant", content: "Sorry, something went wrong. Please try again." }]);
-    } finally {
-      setChatLoading(false);
-    }
+      setMessages([...next, { role: "assistant", content: "That did not go through. Try again." }]);
+    } finally { setChatLoading(false); }
   };
+  const send = (e: React.FormEvent) => { e.preventDefault(); sendText(input); };
 
-  const probData = Object.entries(result.all_probs)
-    .map(([cls, p]) => ({ cls, p }))
-    .sort((a, b) => a.p - b.p);
+  useEffect(() => {
+    if (!chatOpen) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setChatOpen(false); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [chatOpen]);
 
-  const barColor   = decisionColor[result.decision];
-  const badgeEmoji = result.decision === "SAVE" ? "" : result.decision === "REVIEW" ? "" : "";
-  const badgeCls   = `badge badge-${result.decision.toLowerCase()}`;
+  const v = result.decision.toLowerCase() as keyof typeof COLOR;
+  const probs = Object.entries(result.all_probs).sort((a, b) => b[1] - a[1]);
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      className="card"
-    >
-      {/* Header */}
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <div className="card-title">Prediction Result</div>
-        <span className={badgeCls}>{badgeEmoji} {result.decision}</span>
-      </div>
-
-      {/* Metrics */}
-      <div className="metric-grid">
-        <div className="metric-card">
-          <div className="m-label">Defect Type</div>
-          <div className="m-value" style={{ fontSize: "1rem" }}>{result.defect_type}</div>
+  const readout = (
+    <div className={"read " + v}>
+      <div className="num">{result.yield_pct.toFixed(result.yield_pct % 1 ? 1 : 0)}<sup>%</sup></div>
+      <span className={"sticker " + v}>{result.decision}</span>
+    </div>
+  );
+  const cells = (
+    <>
+      <div><span>Pattern</span><b>{result.defect_type}</b></div>
+      <div><span>Confidence</span><b>{result.confidence.toFixed(1)}%</b></div>
+      <div><span>Dies affected</span><b>{(result.defect_ratio * 100).toFixed(1)}%</b></div>
+    </>
+  );
+  const gauge = (
+    <div className="gauge"><span>Yield vs thresholds</span>
+      <div className="zones"><i style={{ width: `${Math.min(100, result.yield_pct)}%`, background: COLOR[v] }} /><u style={{ left: "40%" }} /><u style={{ left: "70%" }} /></div>
+      <div className="scale"><span style={{ left: 0 }}>0</span><span style={{ left: "40%" }}>40</span><span style={{ left: "70%" }}>70</span><span style={{ right: 0 }}>100</span></div>
+    </div>
+  );
+  const factsEl = <section className="facts">{cells}{gauge}</section>;
+  const factsMini = <section className="facts">{cells}</section>;
+  const oddsEl = (
+    <section className="tile">
+        <h2>Pattern odds <small>{(result.defect_ratio * 100).toFixed(2)}% of dies affected</small></h2>
+        <div className="probs">
+          {probs.map(([name, p], i) => (
+            <div key={name} className={"prob" + (i === 0 ? " top" : "")}>
+              <span>{name}</span><div><i style={{ width: `${Math.max(1, p)}%` }} /></div><em>{p.toFixed(1)}%</em>
+            </div>
+          ))}
         </div>
-        <div className="metric-card">
-          <div className="m-label">Confidence</div>
-          <div className="m-value">{result.confidence.toFixed(1)}%</div>
-        </div>
-        <div className="metric-card">
-          <div className="m-label">Murphy Yield</div>
-          <div className="m-value">{result.yield_pct}%</div>
-        </div>
-      </div>
-
-      {/* Yield bar */}
-      <div style={{ marginTop: 6 }}>
-        <div style={{ background: "#ffffff2e", borderRadius: 10, height: 14, overflow: "hidden" }}>
-          <div style={{ width: `${result.yield_pct}%`, height: "100%", background: barColor, transition: "width 0.35s ease" }} />
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", color: "#9a9aa8", marginTop: 4 }}>
-          <span>0%</span><span style={{ color: "#ffd23d" }}>40%</span><span style={{ color: "#c6ff3d" }}>70%</span><span>100%</span>
-        </div>
-      </div>
-
-      {/* ── Grad-CAM Section ── */}
+      </section>
+  );
+  const camEl = (
+    <>
       {result.gradcam && (
-        <div className="mt-3">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <div className="card-title" style={{ marginBottom: 0 }}>Grad-CAM Heatmap</div>
-            <button
-              className="btn btn-ghost"
-              style={{ fontSize: "0.75rem", padding: "5px 12px" }}
-              onClick={() => setShowGradcam(v => !v)}
-            >
-              {showGradcam ? "Hide" : "Show Heatmap"}
-            </button>
-          </div>
-
-          <AnimatePresence>
-            {showGradcam && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
-                style={{ overflow: "hidden" }}
-              >
-                <div style={{
-                  background: "#0a0a0f",
-                  borderRadius: 12, padding: 12,
-                  border: "1px solid #ffffff2e",
-                  textAlign: "center"
-                }}>
-                  <img
-                    src={result.gradcam}
-                    alt="Grad-CAM Heatmap"
-                    style={{ maxWidth: "100%", borderRadius: 8, display: "block", margin: "0 auto" }}
-                  />
-                  <p style={{ fontSize: "0.72rem", color: "#9a9aa8", marginTop: 8, marginBottom: 0 }}>
-                    Red/Yellow → High activation regions (where AI focused) &nbsp;·&nbsp; Blue → Low activation
-                  </p>
-                </div>
-
-                {/* Defect ratio info */}
-                <div style={{
-                  marginTop: 10, background: "#1b1b25",
-                  borderLeft: "4px solid #c6ff3d",
-                  borderRadius: "0 8px 8px 0", padding: "10px 14px",
-                  fontSize: "0.82rem", color: "#f4f4f0"
-                }}>
-                  <strong>Defect Density:</strong> {(result.defect_ratio * 100).toFixed(2)}% of wafer surface affected.
-                  The highlighted regions show where the EfficientNet-B3 model detected the <strong>{result.defect_type}</strong> defect pattern.
-                </div>
+        <section className="tile">
+          <h2>Where the model looked
+            <button className="btn sm" onClick={() => setShowCam(s => !s)}>{showCam ? "Hide" : "Show heatmap"}</button>
+          </h2>
+          <AnimatePresence initial={false}>
+            {showCam && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden" }}>
+                <img src={result.gradcam} alt="Grad-CAM heatmap" style={{ width: "100%", maxWidth: 360, borderRadius: 12, display: "block", margin: "0 auto" }} />
+                <p className="note" style={{ marginTop: 12 }}>Warm areas drew the most attention from the model, cool areas the least.</p>
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </section>
       )}
-
-      {/* Class probabilities */}
-      <div className="mt-3">
-        <div className="card-title">Class Probabilities</div>
-        <div style={{ width: "100%", height: 240 }}>
-          <ResponsiveContainer>
-            <BarChart data={probData} layout="vertical" margin={{ top: 4, right: 20, left: 4, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff2e" />
-              <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: "#9a9aa8" }} />
-              <YAxis dataKey="cls" type="category" tick={{ fontSize: 11, fill: "#ffffff2e" }} width={70} />
-              <Tooltip formatter={(v: number) => `${v}%`} contentStyle={{ borderRadius: 8, border: "1px solid #ffffff2e", fontSize: 12 }} />
-              <Bar dataKey="p" radius={[0, 6, 6, 0]}>
-                {probData.map((d, i) => (
-                  <Cell key={i} fill={d.cls === result.defect_type ? "#c6ff3d" : "#9a9aa8"} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Expert Analysis */}
-      <div className="mt-3">
-        <div className="card-title">Expert Analysis</div>
-        {loading && <p style={{ color: "#9a9aa8", fontSize: "0.85rem" }}>Fetching expert analysis…</p>}
-        {err    && <p style={{ color: "#ff2e93", fontSize: "0.85rem" }}>{err}</p>}
+    </>
+  );
+  const expertEl = (
+    <section className="tile">
+        <h2>Expert read</h2>
+        {loading && <p className="note"><span className="spin lt" style={{ display: "inline-block", verticalAlign: "-3px", marginRight: 8 }} />Reading the pattern…</p>}
+        {err && <p className="err" style={{ marginTop: 0 }}>{err}</p>}
         {expl && (
           <>
-            <div className="expert-box" style={{ fontSize: "0.88rem", lineHeight: 1.7 }}>
-              {formatExplanation(expl)}
-            </div>
-            <button
-              className="btn btn-primary mt-2"
-              style={{ fontSize: "0.82rem", padding: "8px 18px" }}
-              onClick={() => setChatOpen(v => !v)}
-            >
-              {chatOpen ? "Close Chat" : "Know More"}
-            </button>
+            <Explanation text={expl} />
+            <div className="acts"><button className="btn main" onClick={() => setChatOpen(o => !o)}><Icon name="chat" size={20} />Ask the bot</button></div>
           </>
         )}
-      </div>
+      </section>
+  );
 
-      {/* Chat */}
-      <AnimatePresence>
-        {chatOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.22 }}
-            style={{ overflow: "hidden" }}
-          >
-            <div className="mt-2" style={{ border: "1px solid #ffffff2e", borderRadius: 12, overflow: "hidden", background: "#1b1b25" }}>
-              <div style={{
-                background: "linear-gradient(135deg, #14141b, #f4f4f0)",
-                padding: "10px 16px", color: "#fff",
-                fontSize: "0.82rem", fontWeight: 600,
-                display: "flex", alignItems: "center", gap: 8
-              }}>
-                Wafer Expert Chat
-                <span style={{ fontSize: "0.72rem", fontWeight: 400, opacity: 0.75, marginLeft: 4 }}>
-                  Ask anything about this wafer
-                </span>
-              </div>
-
-              <div style={{ height: 280, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
-                {messages.length === 0 && (
-                  <p style={{ color: "#9a9aa8", fontSize: "0.82rem", textAlign: "center", marginTop: 80 }}>
-                    Ask me anything about this wafer defect, yield, or corrective actions!
-                  </p>
-                )}
-                {messages.map((m, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                    <div style={{
-                      maxWidth: "80%", padding: "8px 12px",
-                      borderRadius: m.role === "user" ? "12px 12px 2px 12px" : "12px 12px 12px 2px",
-                      background: m.role === "user" ? "linear-gradient(135deg, #f4f4f0, #c6ff3d)" : "#fff",
-                      color: m.role === "user" ? "#fff" : "#f4f4f0",
-                      fontSize: "0.84rem", lineHeight: 1.6,
-                      boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-                      border: m.role === "assistant" ? "1px solid #ffffff2e" : "none"
-                    }}>
-                      {m.content}
-                    </div>
+  const drawer = (
+    <AnimatePresence>
+      {chatOpen && (
+        <>
+          <motion.div key="scrim" className="botscrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setChatOpen(false)} />
+          <motion.aside key="drawer" className="botdrawer" role="dialog" aria-label="Wafer bot"
+            initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
+            <header>
+              <div><b>Wafer bot</b><small>Knows this scan: {result.defect_type} · {result.yield_pct}% · {result.decision}</small></div>
+              <button className="x" onClick={() => setChatOpen(false)} aria-label="Close chat">Close</button>
+            </header>
+            <div className="log" ref={logRef}>
+              {messages.length === 0 && (
+                <div className="hello">
+                  <p>Ask about the cause, the fix, or whether to ship this wafer.</p>
+                  <div className="sugg">
+                    {["Why this pattern?", "Should I ship it?", "What usually causes this?"].map(q => <button key={q} onClick={() => sendText(q)}>{q}</button>)}
                   </div>
-                ))}
-                {chatLoading && (
-                  <div style={{ display: "flex", justifyContent: "flex-start" }}>
-                    <div style={{ padding: "8px 14px", borderRadius: "12px 12px 12px 2px", background: "#fff", border: "1px solid #ffffff2e", fontSize: "0.84rem", color: "#9a9aa8" }}>
-                      Thinking…
-                    </div>
-                  </div>
-                )}
-                <div ref={bottomRef} />
-              </div>
-
-              <div style={{ borderTop: "1px solid #ffffff2e", padding: "10px 12px", display: "flex", gap: 8, background: "#fff" }}>
-                <input
-                  type="text"
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && sendMessage()}
-                  placeholder="Ask about this defect…"
-                  style={{ flex: 1, padding: "8px 12px", border: "1px solid #ffffff2e", borderRadius: 8, fontSize: "0.85rem", outline: "none", background: "#1b1b25", color: "#f4f4f0" }}
-                />
-                <button className="btn btn-primary" onClick={sendMessage} disabled={!input.trim() || chatLoading} style={{ padding: "8px 16px", fontSize: "0.82rem" }}>
-                  Send
-                </button>
-              </div>
+                </div>
+              )}
+              {messages.map((m, i) => <div key={i} className={"m " + (m.role === "user" ? "me" : "ai")}>{m.content}</div>)}
+              {chatLoading && <div className="m ai">Thinking…</div>}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <form onSubmit={send}>
+              <input autoFocus value={input} onChange={e => setInput(e.target.value)} placeholder="Ask about this wafer" aria-label="Your question" />
+              <button className="btn main" disabled={!input.trim() || chatLoading}>Send</button>
+            </form>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+  );
+  const portal = createPortal(drawer, document.querySelector(".app") ?? document.body);
+
+  if (variant === "scan") {
+    // Scan page pieces go straight into the page grid so the two columns line up row by row.
+    return (
+      <>
+        <motion.div className="rstage" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}>
+          {liveSource
+            ? <div className="stage3d"><Suspense fallback={null}><WaferScene pattern="None" live={liveSource} /></Suspense>{readout}</div>
+            : <DieStage name={result.defect_type} replay={result.yield_pct + result.defect_type} className={"v-" + v}>{readout}</DieStage>}
+        </motion.div>
+        <div className="rfacts">{factsMini}</div>
+        <div className="rodds"><section className="tile gaugetile"><h2>Yield vs thresholds</h2>{gauge}</section>{oddsEl}</div>
+        <div className="rexp">{camEl}{expertEl}</div>
+        {portal}
+      </>
+    );
+  }
+
+  return (
+    <motion.div className="res" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
+      <DieStage name={result.defect_type} replay={result.yield_pct + result.defect_type} className={"v-" + v}>
+        {readout}
+      </DieStage>
+      {factsEl}
+      {oddsEl}
+      {camEl}
+      {expertEl}
+      {portal}
     </motion.div>
   );
 }

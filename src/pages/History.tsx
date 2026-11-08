@@ -1,236 +1,166 @@
-import { useEffect, useState } from "react";
-import {
-  ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, ReferenceLine
-} from "recharts";
-import PageHeader from "../components/PageHeader";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
+import Select from "../components/Select";
+import DieMap from "../components/DieMap";
 import { getMyHistory, adminGetUsers, adminGetUserHistory, HistoryEntry } from "../api/client";
 import type { User } from "../api/client";
 
-const PURPLE_PALETTE = ["#c6ff3d","#f4f4f0","#c6ff3d","#d6ff6b","#d6ff6b","#ffffff2e","#1b1b25","#1b1b25","#c6ff3d"];
-const DECISION_COLORS: Record<string, string> = { SAVE: "#c6ff3d", REVIEW: "#ffd23d", SCRAP: "#ff2e93" };
+type Filter = "ALL" | "SAVE" | "REVIEW" | "SCRAP";
+const PAGE = 48;
+
+const ago = (iso: string) => {
+  const t = new Date(iso.includes("T") || iso.includes("Z") ? iso : iso.replace(" ", "T")).getTime();
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 90) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+  if (s < 7 * 86400) return `${Math.round(s / 86400)}d ago`;
+  return new Date(t).toLocaleDateString();
+};
 
 export default function History() {
-  const rawUser = localStorage.getItem("wafer_user");
-  const currentUser: User | null = rawUser ? JSON.parse(rawUser) : null;
-  const isAdmin = currentUser?.role === "admin";
+  const raw = localStorage.getItem("wafer_user");
+  const me: User | null = raw ? JSON.parse(raw) : null;
+  const isAdmin = me?.role === "admin";
 
-  const [history, setHistory]         = useState<HistoryEntry[]>([]);
-  const [users, setUsers]             = useState<{ id: number; name: string; email: string }[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [selectedUserName, setSelectedUserName] = useState<string>("");
-  const [loading, setLoading]         = useState(true);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [users, setUsers] = useState<{ id: number; name: string; email: string }[]>([]);
+  const [uid, setUid] = useState<number | null>(null);
+  const [uname, setUname] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [verdict, setVerdict] = useState<Filter>("ALL");
+  const [pat, setPat] = useState("ALL");
+  const [limit, setLimit] = useState(PAGE);
+  const [open, setOpen] = useState<HistoryEntry | null>(null);
 
-  // Load users list for admin
   useEffect(() => {
-    if (isAdmin) {
-      adminGetUsers().then((data: any[]) => {
-        setUsers(data.map(u => ({ id: u.id, name: u.name, email: u.email })));
-      }).catch(() => {});
-    }
+    if (isAdmin) adminGetUsers().then((d: any[]) => setUsers(d.map(u => ({ id: u.id, name: u.name, email: u.email })))).catch(() => {});
   }, [isAdmin]);
 
-  // Load history based on role + selection
   useEffect(() => {
-    setLoading(true);
-    if (isAdmin && selectedUserId !== null) {
-      adminGetUserHistory(selectedUserId)
-        .then(data => { setHistory(data); setLoading(false); })
-        .catch(() => setLoading(false));
-    } else if (!isAdmin) {
-      getMyHistory()
-        .then(data => { setHistory(data); setLoading(false); })
-        .catch(() => setLoading(false));
-    } else {
-      setHistory([]);
-      setLoading(false);
-    }
-  }, [isAdmin, selectedUserId]);
+    setLoading(true); setVerdict("ALL"); setPat("ALL"); setLimit(PAGE);
+    if (isAdmin && uid !== null) adminGetUserHistory(uid).then(setHistory).catch(() => {}).finally(() => setLoading(false));
+    else if (!isAdmin) getMyHistory().then(setHistory).catch(() => {}).finally(() => setLoading(false));
+    else { setHistory([]); setLoading(false); }
+  }, [isAdmin, uid]);
 
-  const handleUserSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const id = parseInt(e.target.value);
-    const user = users.find(u => u.id === id);
-    setSelectedUserId(id);
-    setSelectedUserName(user ? `${user.name} (${user.email})` : "");
+  useEffect(() => {
+    if (!open) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(null); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [open]);
+
+  const newest = useMemo(() => [...history].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1)), [history]);
+  const counts = useMemo(() => ({
+    ALL: history.length,
+    SAVE: history.filter(h => h.decision === "SAVE").length,
+    REVIEW: history.filter(h => h.decision === "REVIEW").length,
+    SCRAP: history.filter(h => h.decision === "SCRAP").length
+  }), [history]);
+  const patterns = useMemo(() => {
+    const m: Record<string, number> = {}; history.forEach(h => { m[h.defect_type] = (m[h.defect_type] || 0) + 1; });
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  }, [history]);
+
+  const shown = newest.filter(h => (verdict === "ALL" || h.decision === verdict) && (pat === "ALL" || h.defect_type === pat));
+
+  const csv = () => {
+    if (!shown.length) return;
+    const rows = shown.map(h => [h.timestamp, h.wafer_id, h.defect_type, h.confidence.toFixed(1), h.yield_pct, h.decision].join(","));
+    const blob = new Blob([["Timestamp,Wafer ID,Defect,Confidence (%),Yield (%),Decision", ...rows].join("\n")], { type: "text/csv" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = `wafer_history${uname ? "_" + uname.split(" ")[0] : ""}.csv`; a.click(); URL.revokeObjectURL(a.href);
   };
 
-  const downloadCsv = () => {
-    if (!history.length) return;
-    const headers = ["Timestamp", "Wafer ID", "Defect", "Confidence (%)", "Yield (%)", "Decision"];
-    const rows = history.map(h => [
-      h.timestamp, h.wafer_id, h.defect_type,
-      h.confidence.toFixed(1), h.yield_pct, h.decision
-    ].join(","));
-    const csv  = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url;
-    a.download = `wafer_history${selectedUserName ? `_${selectedUserName.split(" ")[0]}` : ""}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const people = isAdmin && (
+    <div className="hsel"><Select label="Person" value={uid} placeholder="Choose a person" options={users.map(u => ({ value: u.id, label: u.name, sub: u.email }))}
+      onChange={(id: number) => { const u = users.find(x => x.id === id); setUid(id); setUname(u ? `${u.name} (${u.email})` : ""); }} /></div>
+  );
 
-  // Charts data
-  const defectCounts: Record<string, number> = {};
-  history.forEach(h => { defectCounts[h.defect_type] = (defectCounts[h.defect_type] || 0) + 1; });
-  const pieData = Object.entries(defectCounts).map(([name, value]) => ({ name, value }));
-
-  const decCounts: Record<string, number> = {};
-  history.forEach(h => { decCounts[h.decision] = (decCounts[h.decision] || 0) + 1; });
-  const decData = Object.entries(decCounts).map(([decision, count]) => ({ decision, count }));
-
-  const trendData = [...history].reverse().map((h, i) => ({ idx: i + 1, yieldPct: h.yield_pct }));
-
-  const subtitle = isAdmin
-    ? selectedUserName ? `${history.length} inspections — ${selectedUserName}` : "Select a user to view their history"
-    : `${history.length} inspections recorded`;
+  const chips: Filter[] = ["ALL", "SAVE", "REVIEW", "SCRAP"];
 
   return (
-    <>
-      <PageHeader title="Prediction History" subtitle={subtitle} />
+    <div className="histpage">
+      <header className="hhead">
+        <h1 className="one"><span>Rewind </span><em>scans.</em></h1>
+        <div className="hright">
+          {people}
+          {history.length > 0 && <button className="btn" onClick={csv}>Export {shown.length === history.length ? "all" : shown.length} to CSV</button>}
+        </div>
+      </header>
 
-      {/* Admin user selector */}
-      {isAdmin && (
-        <div className="card" style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#9a9aa8", whiteSpace: "nowrap" }}>
-            View history for:
-          </div>
-          <select
-            value={selectedUserId ?? ""}
-            onChange={handleUserSelect}
-            style={{
-              flex: 1, padding: "10px 14px",
-              border: "1px solid #ffffff2e", borderRadius: 10,
-              fontSize: "0.88rem", color: "#f4f4f0",
-              background: "#1b1b25", outline: "none", cursor: "pointer"
-            }}
-          >
-            <option value="" disabled>— Select a user —</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>
-                {u.name} · {u.email}
-              </option>
+      {history.length > 0 && (
+        <div className="hbar">
+          <div className="hchips" role="group" aria-label="Filter by verdict">
+            {chips.map(c => (
+              <button key={c} className={"hc " + c.toLowerCase() + (verdict === c ? " on" : "")} aria-pressed={verdict === c} onClick={() => { setVerdict(c); setLimit(PAGE); }}>
+                {c === "ALL" ? "All" : c}<b>{counts[c]}</b>
+              </button>
             ))}
-          </select>
-          {selectedUserId && (
-            <button
-              className="btn btn-ghost"
-              style={{ fontSize: "0.78rem", padding: "8px 14px", whiteSpace: "nowrap" }}
-              onClick={() => { setSelectedUserId(null); setSelectedUserName(""); setHistory([]); }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Loading */}
-      {loading && (
-        <div className="card"><p style={{ color: "#9a9aa8", fontSize: "0.85rem" }}>Loading history…</p></div>
-      )}
-
-      {/* Empty state */}
-      {!loading && !history.length && (
-        <div className="card">
-          <div className="empty-state">
-            {isAdmin && !selectedUserId
-              ? "Select a user from the dropdown above to view their prediction history."
-              : "No history yet — run some predictions first."
-            }
+          </div>
+          <div className="hsel pat">
+            <Select label="Pattern" value={pat} onChange={(v: string) => { setPat(v); setLimit(PAGE); }}
+              options={[{ value: "ALL", label: "All patterns", sub: `${history.length} scans` }, ...patterns.map(([n, c]) => ({ value: n, label: n, sub: `${c} scans` }))]} />
           </div>
         </div>
       )}
 
-      {/* History table */}
+      {loading && <p className="note">Loading…</p>}
+
+      {!loading && history.length === 0 && (
+        <div className="empty hempty"><div>
+          <b>{isAdmin && !uid ? "Pick a person" : "No scans yet"}</b>
+          <p>{isAdmin && !uid ? "Choose someone above to see their wafers." : "Scan a wafer and it lands here as a tile."}</p>
+          {!isAdmin && <Link className="btn main" to="/app">Scan a wafer</Link>}
+        </div></div>
+      )}
+
       {!loading && history.length > 0 && (
         <>
-          <div className="table-wrap mt-1">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>Wafer ID</th>
-                  <th>Defect</th>
-                  <th>Confidence</th>
-                  <th>Yield</th>
-                  <th>Decision</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((h, i) => (
-                  <tr key={i}>
-                    <td style={{ fontFamily: "monospace", fontSize: "0.78rem", color: "#9a9aa8" }}>
-                      {new Date(h.timestamp).toLocaleString()}
-                    </td>
-                    <td><strong>{h.wafer_id}</strong></td>
-                    <td>{h.defect_type}</td>
-                    <td>{h.confidence.toFixed(1)}%</td>
-                    <td>{h.yield_pct}%</td>
-                    <td><span className={`cell-decision ${h.decision}`}>{h.decision}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="sheet">
+            {shown.slice(0, limit).map(h => {
+              const k = h.decision.toLowerCase();
+              return (
+                <button key={h.id} className={"ct " + k} onClick={() => setOpen(h)} aria-label={`${h.wafer_id}, ${h.defect_type}, ${h.yield_pct}% yield, ${h.decision}`}>
+                  <span className="ctring"><DieMap name={h.defect_type} className="ctmap" /></span>
+                  <b className="cty">{h.yield_pct}<sup>%</sup></b>
+                  <i className={"v " + k}>{h.decision}</i>
+                  <span className="ctp">{h.defect_type}</span>
+                  <small className="ctw">{h.wafer_id} · {ago(h.timestamp)}</small>
+                </button>
+              );
+            })}
           </div>
-
-          <div className="mt-2">
-            <button className="btn btn-ghost" onClick={downloadCsv}>Download CSV</button>
-          </div>
-
-          <div className="grid-2 grid-2-even mt-3">
-            <div className="card">
-              <div className="card-title">Defect Distribution</div>
-              <div style={{ width: "100%", height: 260 }}>
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={90} innerRadius={45}
-                         labelLine={false} label={(e: any) => `${e.name} ${(e.percent * 100).toFixed(0)}%`}>
-                      {pieData.map((_, i) => <Cell key={i} fill={PURPLE_PALETTE[i % PURPLE_PALETTE.length]} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #ffffff2e", fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="card-title">Decision Breakdown</div>
-              <div style={{ width: "100%", height: 260 }}>
-                <ResponsiveContainer>
-                  <BarChart data={decData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff2e" />
-                    <XAxis dataKey="decision" tick={{ fontSize: 12, fill: "#ffffff2e" }} />
-                    <YAxis tick={{ fontSize: 11, fill: "#9a9aa8" }} />
-                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #ffffff2e", fontSize: 12 }} />
-                    <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                      {decData.map((d, i) => <Cell key={i} fill={DECISION_COLORS[d.decision] || "#9a9aa8"} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card-title">Yield Trend</div>
-            <div style={{ width: "100%", height: 240 }}>
-              <ResponsiveContainer>
-                <LineChart data={trendData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff2e" />
-                  <XAxis dataKey="idx" tick={{ fontSize: 11, fill: "#9a9aa8" }}
-                    label={{ value: "Prediction #", position: "insideBottom", offset: -2, fontSize: 11, fill: "#9a9aa8" }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#9a9aa8" }} />
-                  <Tooltip formatter={(v: number) => `${v}%`} contentStyle={{ borderRadius: 8, border: "1px solid #ffffff2e", fontSize: 12 }} />
-                  <ReferenceLine y={70} stroke="#c6ff3d" strokeDasharray="4 4" />
-                  <ReferenceLine y={40} stroke="#ffd23d" strokeDasharray="4 4" />
-                  <Line type="monotone" dataKey="yieldPct" stroke="#c6ff3d" strokeWidth={2.5} dot={{ r: 4, fill: "#c6ff3d" }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          {shown.length === 0 && <p className="note" style={{ marginTop: 16 }}>Nothing matches that filter.</p>}
+          {shown.length > limit && <div className="more"><button className="btn" onClick={() => setLimit(l => l + PAGE)}>Show {Math.min(PAGE, shown.length - limit)} more</button></div>}
         </>
       )}
-    </>
+
+      <AnimatePresence>
+        {open && (
+          <>
+            <motion.div key="s" className="botscrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setOpen(null)} />
+            <motion.aside key="d" className="botdrawer dtl" role="dialog" aria-label={`${open.wafer_id} details`}
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
+              <header>
+                <div><b>{open.wafer_id}</b><small>{new Date(open.timestamp.includes("T") ? open.timestamp : open.timestamp.replace(" ", "T")).toLocaleString()}</small></div>
+                <button className="x" onClick={() => setOpen(null)}>Close</button>
+              </header>
+              <div className="dbody">
+                <div className={"dmap " + open.decision.toLowerCase()}><span className="ctring"><DieMap name={open.defect_type} className="ctmap" /></span></div>
+                <div className="dyield"><b className={open.decision.toLowerCase()}>{open.yield_pct}<sup>%</sup></b><i className={"v " + open.decision.toLowerCase()}>{open.decision}</i></div>
+                <div className="dgrid">
+                  <div><span>Pattern</span><b>{open.defect_type}</b></div>
+                  <div><span>Confidence</span><b>{open.confidence.toFixed(1)}%</b></div>
+                  <div><span>Dies affected</span><b>{(open.defect_ratio * 100).toFixed(1)}%</b></div>
+                </div>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
