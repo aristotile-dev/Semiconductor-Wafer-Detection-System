@@ -4,6 +4,41 @@ import base64
 from groq import Groq
 
 
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+WAFER_QUESTION = """You are a semiconductor inspection expert.
+Does this image show a semiconductor wafer map, a wafer defect map, a wafer inspection image or a die map?
+These can be round or square, colour heatmaps, black and white defect maps, or grids of dies with failed dies marked.
+Photos of people, animals, objects, scenery, documents, screenshots and medical scans such as X-rays are NOT wafer maps.
+Reply with only YES or NO."""
+
+
+def is_wafer_image_gemini(image_pil, api_key=None):
+    """Ask Gemini whether the image is a wafer map. Raises if the call fails so the caller can fall back."""
+    import httpx
+    api_key = api_key or os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY not configured")
+    buf = io.BytesIO()
+    image_pil.convert("RGB").save(buf, format="JPEG", quality=85)
+    body = {
+        "contents": [{"parts": [
+            {"inline_data": {"mime_type": "image/jpeg", "data": base64.b64encode(buf.getvalue()).decode()}},
+            {"text": WAFER_QUESTION},
+        ]}],
+        "generationConfig": {"temperature": 0, "maxOutputTokens": 8},
+    }
+    r = httpx.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+        headers={"x-goog-api-key": api_key}, json=body, timeout=20,
+    )
+    r.raise_for_status()
+    parts = r.json()["candidates"][0]["content"]["parts"]
+    answer = "".join(p.get("text", "") for p in parts).strip().upper()
+    if not answer:
+        raise ValueError("empty answer from Gemini")
+    return answer.startswith("YES")
+
+
 def is_wafer_image(image_pil, api_key=None):
     api_key = api_key or os.getenv("GROQ_API_KEY", "")
     if not api_key:

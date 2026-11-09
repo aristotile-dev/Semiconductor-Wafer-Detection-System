@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from model_utils import load_model, predict, murphy_yield, CLASSES
-from nlp_utils import get_explanation, is_wafer_image, wafer_chat
+from nlp_utils import get_explanation, is_wafer_image_gemini, wafer_chat
 from wafer_check import check_wafer
 from database import get_db, init_db, User, PredictionHistory
 from auth import (
@@ -119,15 +119,13 @@ NOT_WAFER = "Invalid input: Please upload a valid semiconductor wafer image."
 
 
 def _verify_wafer(image: PILImage.Image) -> None:
-    """Reject anything that is not a wafer map. Cheap local check first, then the vision model."""
-    verdict, _ = check_wafer(image)
-    if verdict == "no":
-        raise HTTPException(status_code=400, detail=NOT_WAFER)
+    """Reject anything that is not a wafer map. Gemini decides; the local pixel check only covers for it when it fails."""
     try:
-        ok = is_wafer_image(image)
+        ok = is_wafer_image_gemini(image)
     except Exception as e:
-        print(f"[wafer-check] vision model unavailable: {e}")
-        ok = verdict == "yes"  # without the vision model, only accept clear wafer maps
+        print(f"[wafer-check] Gemini unavailable, using the local check: {e}")
+        verdict, _ = check_wafer(image)
+        ok = verdict != "no"
     if not ok:
         raise HTTPException(status_code=400, detail=NOT_WAFER)
 

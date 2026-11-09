@@ -1,8 +1,7 @@
-"""Cheap local check for "is this a wafer map?" that runs before any paid or remote model.
+"""Local check for "is this a wafer map?".
 
-Wafer maps are a circle of dies on a flat background, drawn in a handful of colours.
-Photos (faces, X-rays, scenery) have rich gradients, no flat background, or no circle.
-The check only says "no" when the evidence is strong; unclear images are left to the vision model.
+Used only as a fallback when the vision model cannot answer. Wafer maps are drawn in a handful of
+flat colours or tones; photos (faces, X-rays, scenery) have a continuous range of them.
 """
 import numpy as np
 from PIL import Image as PILImage
@@ -41,13 +40,14 @@ def _features(img: PILImage.Image) -> dict:
 
 
 def check_wafer(img: PILImage.Image) -> tuple[str, dict]:
-    """Return ("no" | "maybe" | "yes", features). "no" is only returned on strong evidence."""
+    """Fallback verdict when the vision model is down: "no" | "maybe" | "yes".
+
+    Wafer maps may be round or square, so the shape is not judged. Only the look of the pixels is:
+    a map is a few flat colours or tones, a photo is a continuous range of them.
+    """
     f = _features(img)
-    photo_like = f["top6"] < 0.55 or f["entropy"] > 4.2            # too many colours or tones for a defect map
-    no_background = f["corner_std"] > 40 and f["outside"] > 0.5    # content runs into the corners
-    empty = f["inside"] < 0.05                                     # almost nothing drawn
-    if photo_like or no_background or empty:
+    if f["top6"] < 0.55 or f["entropy"] > 4.2 or f["inside"] < 0.05:
         return "no", f
-    if f["corner_std"] < 18 and f["inside"] > 0.2 and f["outside"] < 0.1:
+    if f["top6"] > 0.8 and f["entropy"] < 3.0:
         return "yes", f
     return "maybe", f
