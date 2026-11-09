@@ -7,7 +7,7 @@ from typing import Optional
 import cv2
 import numpy as np
 from PIL import Image as PILImage
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from model_utils import load_model, predict, murphy_yield, CLASSES
 from nlp_utils import get_explanation, is_wafer_image, wafer_chat
+from wafer_check import check_wafer
 from database import get_db, init_db, User, PredictionHistory
 from auth import (
     hash_password, verify_password, create_access_token,
@@ -112,6 +113,39 @@ def _apply_wafer_mask(img: PILImage.Image) -> PILImage.Image:
     cv2.circle(mask, (w // 2, h // 2), min(w, h) // 2 - 5, 255, -1)
     out = np.where(mask[:, :, None] > 0, arr, 0)
     return PILImage.fromarray(out.astype(np.uint8))
+
+
+NOT_WAFER = "Invalid input: Please upload a valid semiconductor wafer image."
+
+
+def _verify_wafer(image: PILImage.Image) -> None:
+    """Reject anything that is not a wafer map. Cheap local check first, then the vision model."""
+    verdict, _ = check_wafer(image)
+    if verdict == "no":
+        raise HTTPException(status_code=400, detail=NOT_WAFER)
+    try:
+        ok = is_wafer_image(image)
+    except Exception as e:
+        print(f"[wafer-check] vision model unavailable: {e}")
+        ok = verdict == "yes"  # without the vision model, only accept clear wafer maps
+    if not ok:
+        raise HTTPException(status_code=400, detail=NOT_WAFER)
+
+
+_guest_hits: dict[str, list[float]] = {}
+
+
+def _guest_limit(request: Request, per_minute: int = 10) -> None:
+    import time
+    ip = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "?")).split(",")[0].strip()
+    now = time.time()
+    hits = [t for t in _guest_hits.get(ip, []) if now - t < 60]
+    if len(hits) >= per_minute:
+        raise HTTPException(status_code=429, detail="Too many guest scans. Wait a minute or request an account.")
+    hits.append(now)
+    _guest_hits[ip] = hits
+    if len(_guest_hits) > 5000:
+        _guest_hits.clear()
 
 
 # ── Auth ────────────────────────────────────────────────────────
@@ -253,10 +287,25 @@ async def predict_endpoint(
 ):
     try:
         image = _image_from_upload(file)
-        if not is_wafer_image(image):
-            raise HTTPException(status_code=400, detail="Invalid input: Please upload a valid semiconductor wafer image.")
+        _verify_wafer(image)
         result = predict(image, get_model(), die_area)
         return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/predict-guest")
+async def predict_guest_endpoint(request: Request, file: UploadFile = File(...)):
+    """Public scan with no account. Same wafer check as /predict, rate limited per IP."""
+    _guest_limit(request)
+    try:
+        image = _image_from_upload(file)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid input: that file is not an image.")
+    try:
+        _verify_wafer(image)
+        return predict(image, get_model(), 0.5)
     except HTTPException:
         raise
     except Exception as e:
