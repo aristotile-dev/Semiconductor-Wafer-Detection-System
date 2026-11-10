@@ -1,7 +1,6 @@
 """Local check for "is this a wafer map?".
 
-Used only as a fallback when the vision model cannot answer. Wafer maps are drawn in a handful of
-flat colours or tones; photos (faces, X-rays, scenery) have a continuous range of them.
+Used only as a fallback when the vision model cannot answer.
 """
 import numpy as np
 from PIL import Image as PILImage
@@ -10,44 +9,49 @@ SIZE = 128
 
 
 def _features(img: PILImage.Image) -> dict:
-    a = np.asarray(img.convert("RGB").resize((SIZE, SIZE), PILImage.BILINEAR)).astype(np.int16)
+    rgb = np.asarray(img.convert("RGB").resize((SIZE, SIZE), PILImage.BILINEAR)).astype(np.int16)
 
-    # 1. Palette: wafer maps use few flat colours, photos use many.
-    q = (a // 32).reshape(-1, 3)
+    # Flat background in the four corners (wafer maps sit on one flat colour, photos do not).
+    k = SIZE // 8
+    corners = np.concatenate([rgb[:k, :k].reshape(-1, 3), rgb[:k, -k:].reshape(-1, 3), rgb[-k:, :k].reshape(-1, 3), rgb[-k:, -k:].reshape(-1, 3)])
+    corner_std = float(corners.std(axis=0).mean())
+    bg = np.median(corners, axis=0)
+
+    # Colourfulness: wafer maps are drawn in saturated colours, X-rays and most scans are grey.
+    mx, mn = rgb.max(axis=2), rgb.min(axis=2)
+    sat = np.where(mx > 0, (mx - mn) / np.maximum(mx, 1), 0.0)
+    colourful = float((sat > 0.5).mean())
+
+    # Palette: share of the picture covered by the six most common coarse colours.
+    q = (rgb // 32).reshape(-1, 3)
     codes = q[:, 0] * 64 + q[:, 1] * 8 + q[:, 2]
-    counts = np.sort(np.bincount(codes, minlength=512))[::-1]
-    top6 = counts[:6].sum() / codes.size
+    top6 = float(np.sort(np.bincount(codes, minlength=512))[::-1][:6].sum() / codes.size)
 
-    # 1b. Tonal richness: a wafer map has a few flat tones, a photo has a continuous range of them.
+    # Content inside the inscribed circle (is anything drawn at all?).
+    yy, xx = np.mgrid[0:SIZE, 0:SIZE]
+    r = np.hypot(yy - (SIZE - 1) / 2, xx - (SIZE - 1) / 2) / (SIZE / 2)
+    content = np.abs(rgb - bg).sum(axis=2) > 60
+    inside = float(content[r <= 0.95].mean())
+
+    # Tone spread of the grey image: grey scans and photos use the whole range smoothly.
     gray = np.asarray(img.convert("L").resize((SIZE, SIZE), PILImage.NEAREST))
     hist = np.bincount((gray // 4).ravel(), minlength=64) / gray.size
     hist = hist[hist > 0]
     entropy = float(-(hist * np.log2(hist)).sum())
-
-    # 2. Flat background in the four corners.
-    k = SIZE // 8
-    corners = np.concatenate([a[:k, :k].reshape(-1, 3), a[:k, -k:].reshape(-1, 3), a[-k:, :k].reshape(-1, 3), a[-k:, -k:].reshape(-1, 3)])
-    corner_std = float(corners.std(axis=0).mean())
-    bg = np.median(corners, axis=0)
-
-    # 3. Circle: content should sit inside the inscribed circle, not outside it.
-    yy, xx = np.mgrid[0:SIZE, 0:SIZE]
-    r = np.hypot(yy - (SIZE - 1) / 2, xx - (SIZE - 1) / 2) / (SIZE / 2)
-    content = np.abs(a - bg).sum(axis=2) > 60
-    inside = content[r <= 0.95].mean()
-    outside = content[r > 1.0].mean() if (r > 1.0).any() else 0.0
-    return {"entropy": entropy, "top6": float(top6), "corner_std": corner_std, "inside": float(inside), "outside": float(outside)}
+    return {"colourful": colourful, "corner_std": corner_std, "top6": top6, "inside": inside, "entropy": entropy}
 
 
 def check_wafer(img: PILImage.Image) -> tuple[str, dict]:
     """Fallback verdict when the vision model is down: "no" | "maybe" | "yes".
 
-    Wafer maps may be round or square, so the shape is not judged. Only the look of the pixels is:
-    a map is a few flat colours or tones, a photo is a continuous range of them.
+    Wafer maps can be round or square and in many colour schemes, so the shape is not judged. What gives a
+    map away is a flat background plus saturated colour. Grey scans (X-rays) and busy photos are refused.
     """
     f = _features(img)
-    if f["top6"] < 0.55 or f["entropy"] > 4.2 or f["inside"] < 0.05:
+    grey_scan = f["colourful"] < 0.15 and f["entropy"] > 3.0   # smooth grey tones, not a two-tone map
+    busy_photo = f["corner_std"] > 30 and f["top6"] < 0.7                          # no flat background, many colours
+    if grey_scan or busy_photo or f["inside"] < 0.05:
         return "no", f
-    if f["top6"] > 0.8 and f["entropy"] < 3.0:
+    if f["corner_std"] < 15 and f["colourful"] > 0.4:
         return "yes", f
     return "maybe", f

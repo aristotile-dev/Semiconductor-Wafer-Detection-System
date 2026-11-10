@@ -7,7 +7,7 @@ from groq import Groq
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 WAFER_QUESTION = """You are a semiconductor inspection expert.
 Does this image show a semiconductor wafer map, a wafer defect map, a wafer inspection image or a die map?
-These can be round or square, colour heatmaps, black and white defect maps, or grids of dies with failed dies marked.
+Wafer maps come in many looks: a round or square map on a flat background, drawn as a colour map (typically deep blue outside the wafer, green or cyan across good dies, and yellow, orange or red blobs, rings, arcs, lines or speckles where dies fail), as a black and white defect map, or as a grid of dies with failed dies marked. The edges can look smooth, blocky or blurred, and a wafer with no defects at all is still a wafer map.
 Photos of people, animals, objects, scenery, documents, screenshots and medical scans such as X-rays are NOT wafer maps.
 Reply with only YES or NO."""
 
@@ -27,10 +27,16 @@ def is_wafer_image_gemini(image_pil, api_key=None):
         ]}],
         "generationConfig": {"temperature": 0, "maxOutputTokens": 8},
     }
-    r = httpx.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
-        headers={"x-goog-api-key": api_key}, json=body, timeout=20,
-    )
+    import time
+    r = None
+    for attempt in range(3):  # Gemini answers 503 or 429 now and then; one quick retry usually clears it
+        r = httpx.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+            headers={"x-goog-api-key": api_key}, json=body, timeout=20,
+        )
+        if r.status_code not in (429, 500, 502, 503, 504):
+            break
+        time.sleep(0.8 * (attempt + 1))
     r.raise_for_status()
     parts = r.json()["candidates"][0]["content"]["parts"]
     answer = "".join(p.get("text", "") for p in parts).strip().upper()

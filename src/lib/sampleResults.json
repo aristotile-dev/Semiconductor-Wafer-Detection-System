@@ -1,0 +1,164 @@
+{
+ "Center": {
+  "defect_type": "Center",
+  "confidence": 89.74121809005737,
+  "all_probs": {
+   "Center": 89.74,
+   "Donut": 1.42,
+   "Edge-Loc": 1.68,
+   "Edge-Ring": 0.98,
+   "Loc": 1.91,
+   "Near-full": 1.6,
+   "Random": 0.68,
+   "Scratch": 1.23,
+   "none": 0.75
+  },
+  "yield_pct": 67.96,
+  "decision": "REVIEW",
+  "defect_ratio": 0.3995
+ },
+ "Donut": {
+  "defect_type": "Donut",
+  "confidence": 94.66474056243896,
+  "all_probs": {
+   "Center": 0.46,
+   "Donut": 94.66,
+   "Edge-Loc": 0.51,
+   "Edge-Ring": 0.7,
+   "Loc": 0.64,
+   "Near-full": 0.48,
+   "Random": 1.42,
+   "Scratch": 0.9,
+   "none": 0.23
+  },
+  "yield_pct": 69.04,
+  "decision": "REVIEW",
+  "defect_ratio": 0.3826
+ },
+ "Edge-Loc": {
+  "defect_type": "Edge-Loc",
+  "confidence": 87.81232833862305,
+  "all_probs": {
+   "Center": 2.26,
+   "Donut": 1.51,
+   "Edge-Loc": 87.81,
+   "Edge-Ring": 1.18,
+   "Loc": 1.13,
+   "Near-full": 1.82,
+   "Random": 1.15,
+   "Scratch": 2.32,
+   "none": 0.84
+  },
+  "yield_pct": 72.96,
+  "decision": "SAVE",
+  "defect_ratio": 0.324
+ },
+ "Edge-Ring": {
+  "defect_type": "Edge-Ring",
+  "confidence": 91.92270636558533,
+  "all_probs": {
+   "Center": 1.04,
+   "Donut": 0.92,
+   "Edge-Loc": 0.37,
+   "Edge-Ring": 91.92,
+   "Loc": 0.65,
+   "Near-full": 1.54,
+   "Random": 1.34,
+   "Scratch": 1.98,
+   "none": 0.23
+  },
+  "yield_pct": 75.99,
+  "decision": "SAVE",
+  "defect_ratio": 0.2812
+ },
+ "Loc": {
+  "defect_type": "Loc",
+  "confidence": 94.16451454162598,
+  "all_probs": {
+   "Center": 0.48,
+   "Donut": 1.05,
+   "Edge-Loc": 0.86,
+   "Edge-Ring": 0.76,
+   "Loc": 94.16,
+   "Near-full": 0.75,
+   "Random": 0.57,
+   "Scratch": 0.87,
+   "none": 0.5
+  },
+  "yield_pct": 74.65,
+  "decision": "SAVE",
+  "defect_ratio": 0.2998
+ },
+ "Near-full": {
+  "defect_type": "Near-full",
+  "confidence": 94.53718662261963,
+  "all_probs": {
+   "Center": 0.78,
+   "Donut": 0.59,
+   "Edge-Loc": 0.56,
+   "Edge-Ring": 0.48,
+   "Loc": 0.33,
+   "Near-full": 94.54,
+   "Random": 1.08,
+   "Scratch": 1.06,
+   "none": 0.57
+  },
+  "yield_pct": 48.96,
+  "decision": "REVIEW",
+  "defect_ratio": 0.7624
+ },
+ "Random": {
+  "defect_type": "Random",
+  "confidence": 94.582200050354,
+  "all_probs": {
+   "Center": 0.82,
+   "Donut": 0.41,
+   "Edge-Loc": 0.56,
+   "Edge-Ring": 0.68,
+   "Loc": 0.62,
+   "Near-full": 0.57,
+   "Random": 94.58,
+   "Scratch": 1.22,
+   "none": 0.55
+  },
+  "yield_pct": 61.35,
+  "decision": "REVIEW",
+  "defect_ratio": 0.5102
+ },
+ "Scratch": {
+  "defect_type": "Scratch",
+  "confidence": 93.38719844818115,
+  "all_probs": {
+   "Center": 1.14,
+   "Donut": 1.21,
+   "Edge-Loc": 0.6,
+   "Edge-Ring": 0.93,
+   "Loc": 1.14,
+   "Near-full": 0.8,
+   "Random": 0.64,
+   "Scratch": 93.39,
+   "none": 0.16
+  },
+  "yield_pct": 80.63,
+  "decision": "SAVE",
+  "defect_ratio": 0.2193
+ },
+ "none": {
+  "defect_type": "none",
+  "confidence": 87.27533221244812,
+  "all_probs": {
+   "Center": 2.07,
+   "Donut": 1.51,
+   "Edge-Loc": 1.88,
+   "Edge-Ring": 0.97,
+   "Loc": 1.23,
+   "Near-full": 1.75,
+   "Random": 1.08,
+   "Scratch": 2.23,
+   "none": 87.28
+  },
+  "yield_pct": 73.51,
+  "decision": "SAVE",
+  "defect_ratio": 0.3161
+ }
+}

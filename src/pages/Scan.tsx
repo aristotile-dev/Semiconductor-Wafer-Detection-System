@@ -7,6 +7,7 @@ import Icon from "../components/Icons";
 import { makeSample } from "../components/WaferDrop";
 import { predictGuest, PredictResult } from "../api/client";
 import { PATTERN_NAMES } from "../lib/patterns";
+import sampleResults from "../lib/sampleResults.json";
 import "../styles/landing.css";
 import "../styles/public.css";
 import "../styles/app.css";
@@ -40,7 +41,18 @@ export default function Scan() {
     } finally { if (id === run.current) setBusy(false); }
   };
 
-  const sample = async (name: string) => scan(await makeSample(name), name, false);
+  // The nine samples are real wafer maps that were scanned once by the live model. Their results are bundled,
+  // so tapping one answers at once. Only a map the visitor brings goes to the API.
+  const bundled = (name: string): PredictResult | null => {
+    const key = Object.keys(sampleResults).find(k => k.toLowerCase() === name.toLowerCase());
+    return key ? ({ ...(sampleResults as Record<string, any>)[key], gradcam: null } as PredictResult) : null;
+  };
+  const sample = async (name: string) => {
+    const ready = bundled(name);
+    if (!ready) return scan(await makeSample(name), name, false);
+    run.current++;
+    setErr(null); setBusy(false); setPicked(name); setOwn(null); setRes(ready);
+  };
   const mine = (f?: File | null) => { if (f) scan(f, "", true); };
 
   useEffect(() => {
