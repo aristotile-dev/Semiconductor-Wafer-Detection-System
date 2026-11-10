@@ -1209,3 +1209,7 @@
 @keyframes app-burst { from { transform:translate(0,0) rotate(0) scale(.4); opacity:1; } to { transform:translate(var(--x),var(--y)) rotate(var(--r)) scale(1); opacity:0; } }
 @media (max-width:640px) { .app.lgp .lcard { box-shadow:6px 6px 0 #c6ff3d, 0 30px 60px #000c; } .app.lgp .lrow span { font-size:clamp(44px,9vh,80px); } }
 @media (prefers-reduced-motion:reduce) { .app.lgp .lrow span, .app.lgp .lcard.shake, .app.lgp .lburst i { animation:none; } .app.lgp .lcard { transform:none; } }
+.app.gst .gbox.idle { overflow:hidden; display:grid; place-items:center; }
+.app.gst .gbox.idle .gscan { font:700 13px var(--font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--mute); animation:app-gpulse 1.2s ease-in-out infinite; }
+@keyframes app-gpulse { 50% { opacity:.35; } }
+@media (prefers-reduced-motion:reduce) { .app.gst .gbox.idle .gscan { animation:none; } }

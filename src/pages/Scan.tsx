@@ -89,7 +89,7 @@ export default function Scan() {
               </DieStage>
               <i className="gsweep" aria-hidden="true" />
             </div>
-          ) : <div className="gbox idle" aria-busy="true" />}
+          ) : <div className="gbox idle busy" aria-busy="true"><i className="gsweep" aria-hidden="true" /><span className="gscan">Scanning…</span></div>}
         </div>
 
         <aside className="tile gup">
