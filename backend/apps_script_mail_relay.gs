@@ -5,6 +5,7 @@
  *   3. Deploy -> New deployment -> Web app. Execute as: Me. Who has access: Anyone.
  *   4. Copy the web app URL into the Space secret MAIL_RELAY_URL and the token into MAIL_RELAY_TOKEN.
  * Mail is sent from the Google account that owns the script.
+ * Easiest token: run setup() once (it creates RELAY_TOKEN), then copy the value from Script properties.
  */
 function doPost(e) {
   var out = function (obj) {
@@ -20,4 +21,10 @@ function doPost(e) {
   } catch (err) {
     return out({ ok: false, error: String(err) });
   }
+}
+
+/** Run once. Creates the shared secret that the API must send with every request. */
+function setup() {
+  var props = PropertiesService.getScriptProperties();
+  if (!props.getProperty("RELAY_TOKEN")) props.setProperty("RELAY_TOKEN", Utilities.getUuid() + Utilities.getUuid());
 }

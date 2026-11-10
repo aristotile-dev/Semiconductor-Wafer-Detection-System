@@ -21,6 +21,7 @@ from nlp_utils import get_explanation, is_wafer_image_gemini, wafer_chat
 from wafer_check import check_wafer
 from database import get_db, init_db, User, PredictionHistory, AccessRequest
 from mailer import send_mail, esc
+import mail_templates as tpl
 from auth import (
     hash_password, verify_password, create_access_token,
     get_current_user, get_admin_user, create_action_token, read_action_token
@@ -213,21 +214,14 @@ def _decide_request(db: Session, req: AccessRequest, action: str) -> str:
             temp = secrets.token_urlsafe(9)
             db.add(User(email=req.email, name=req.name, password=hash_password(temp), role="user"))
             db.commit()
-            send_mail(
-                req.email, "You are in: Waferscope access approved",
-                f"<p>Hi {esc(req.name)},</p><p>Your Waferscope access request was approved.</p>"
-                f'<p>Sign in at <a href="{esc(FRONTEND_URL)}/login">{esc(FRONTEND_URL)}/login</a><br>'
-                f"Email: {esc(req.email)}<br>Temporary password: <b>{esc(temp)}</b></p>",
-            )
+            subject, html = tpl.welcome_to_user(req.name, req.email, temp, f"{FRONTEND_URL}/login")
+            send_mail(req.email, subject, html)
             return f"Approved. {req.email} has been emailed their sign-in details."
         db.commit()
         return "Approved. That email already had an account."
     db.commit()
-    send_mail(
-        req.email, "Waferscope access request",
-        f"<p>Hi {esc(req.name)},</p><p>Thanks for your interest. We could not approve your access request this time. "
-        f'You can still scan wafers as a guest at <a href="{esc(FRONTEND_URL)}/scan">{esc(FRONTEND_URL)}/scan</a>.</p>',
-    )
+    subject, html = tpl.rejection_to_user(req.name, f"{FRONTEND_URL}/scan")
+    send_mail(req.email, subject, html)
     return f"Rejected. {req.email} has been told."
 
 
@@ -252,12 +246,8 @@ def request_access(body: AccessRequestBody, request: Request, db: Session = Depe
     if ADMIN_NOTIFY_EMAIL:
         ok_link = f"{API_PUBLIC_URL}/admin/requests/{row.id}/approve?t={create_action_token(row.id, 'approve')}"
         no_link = f"{API_PUBLIC_URL}/admin/requests/{row.id}/reject?t={create_action_token(row.id, 'reject')}"
-        send_mail(
-            ADMIN_NOTIFY_EMAIL, f"Waferscope access request from {name}",
-            f"<p><b>{esc(name)}</b> ({esc(email)}) asked for access.</p><p>{esc(reason) or '<i>No reason given.</i>'}</p>"
-            f'<p><a href="{ok_link}">Approve</a> &nbsp;|&nbsp; <a href="{no_link}">Reject</a></p>'
-            '<p style="color:#888">These links work for 7 days. You can also decide on the People page.</p>',
-        )
+        subject, html = tpl.request_to_admin(name, email, reason, ok_link, no_link)
+        send_mail(ADMIN_NOTIFY_EMAIL, subject, html)
     return {"status": "pending"}
 
 
