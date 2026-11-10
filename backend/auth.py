@@ -10,7 +10,11 @@ from sqlalchemy.orm import Session
 
 from database import get_db, User
 
-SECRET_KEY = os.getenv("SECRET_KEY", "wafer-secret-key-change-in-production-2024")
+SECRET_KEY = os.getenv("SECRET_KEY", "")
+if not SECRET_KEY:
+    import secrets
+    SECRET_KEY = secrets.token_urlsafe(48)
+    print("[auth] SECRET_KEY is not set. Using a random key; everyone is signed out on every restart. Set SECRET_KEY as a secret.")
 ALGORITHM  = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
@@ -56,3 +60,22 @@ def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
+
+
+ACTION_TOKEN_DAYS = 7
+
+
+def create_action_token(request_id: int, action: str) -> str:
+    """Signed token for the approve/reject links in the admin email."""
+    exp = datetime.utcnow() + timedelta(days=ACTION_TOKEN_DAYS)
+    return jwt.encode({"rid": request_id, "act": action, "pur": "access-request", "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def read_action_token(token: str) -> tuple[int, str]:
+    try:
+        p = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if p.get("pur") != "access-request" or p.get("act") not in ("approve", "reject"):
+            raise ValueError
+        return int(p["rid"]), p["act"]
+    except (JWTError, ValueError, KeyError, TypeError):
+        raise HTTPException(status_code=400, detail="This link is invalid or has expired.")

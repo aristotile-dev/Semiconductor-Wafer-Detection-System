@@ -11,15 +11,19 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Req
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
+import re
+import secrets
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from model_utils import load_model, predict, murphy_yield, CLASSES
 from nlp_utils import get_explanation, is_wafer_image_gemini, wafer_chat
 from wafer_check import check_wafer
-from database import get_db, init_db, User, PredictionHistory
+from database import get_db, init_db, User, PredictionHistory, AccessRequest
+from mailer import send_mail, esc
 from auth import (
     hash_password, verify_password, create_access_token,
-    get_current_user, get_admin_user
+    get_current_user, get_admin_user, create_action_token, read_action_token
 )
 
 app = FastAPI(title="Wafer Defect Detection API", version="2.0.0")
@@ -130,20 +134,28 @@ def _verify_wafer(image: PILImage.Image) -> None:
         raise HTTPException(status_code=400, detail=NOT_WAFER)
 
 
-_guest_hits: dict[str, list[float]] = {}
+_hits: dict[str, list[float]] = {}
 
 
-def _guest_limit(request: Request, per_minute: int = 10) -> None:
+def _client_ip(request: Request) -> str:
+    return (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "?")).split(",")[0].strip()
+
+
+def _rate_limit(request: Request, bucket: str, limit: int, window: int, message: str) -> None:
     import time
-    ip = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "?")).split(",")[0].strip()
+    key = f"{bucket}:{_client_ip(request)}"
     now = time.time()
-    hits = [t for t in _guest_hits.get(ip, []) if now - t < 60]
-    if len(hits) >= per_minute:
-        raise HTTPException(status_code=429, detail="Too many guest scans. Wait a minute or request an account.")
+    hits = [t for t in _hits.get(key, []) if now - t < window]
+    if len(hits) >= limit:
+        raise HTTPException(status_code=429, detail=message)
     hits.append(now)
-    _guest_hits[ip] = hits
-    if len(_guest_hits) > 5000:
-        _guest_hits.clear()
+    _hits[key] = hits
+    if len(_hits) > 5000:
+        _hits.clear()
+
+
+def _guest_limit(request: Request) -> None:
+    _rate_limit(request, "guest", 10, 60, "Too many guest scans. Wait a minute or request an account.")
 
 
 # ── Auth ────────────────────────────────────────────────────────
@@ -165,6 +177,138 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 def get_me(current_user: User = Depends(get_current_user)):
     return {"id": current_user.id, "email": current_user.email, "name": current_user.name, "role": current_user.role}
 
+
+# ── Access requests ─────────────────────────────────────────────
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+API_PUBLIC_URL = os.getenv("API_PUBLIC_URL", "https://totz07-wafer-defect-api.hf.space").rstrip("/")
+ADMIN_NOTIFY_EMAIL = os.getenv("ADMIN_NOTIFY_EMAIL", "")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+class AccessRequestBody(BaseModel):
+    name:   str
+    email:  str
+    reason: str = ""
+
+
+def _page(title: str, body: str, form: str = "") -> HTMLResponse:
+    return HTMLResponse(
+        "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
+        f"<title>{esc(title)}</title>"
+        '<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0a0a0f;color:#f4f4ef;font-family:system-ui,sans-serif">'
+        '<main style="max-width:420px;padding:28px;border:2px solid #f4f4ef;border-radius:10px;box-shadow:8px 8px 0 #c6ff3d">'
+        f'<h1 style="margin:0 0 10px;font-size:26px">{esc(title)}</h1>'
+        f'<p style="color:#b9b9c6;line-height:1.5">{body}</p>{form}</main></body>'
+    )
+
+
+def _decide_request(db: Session, req: AccessRequest, action: str) -> str:
+    """Approve or reject a pending request. Returns a short outcome line."""
+    if req.status != "pending":
+        return f"This request was already {req.status}."
+    req.status = "approved" if action == "approve" else "rejected"
+    req.decided_at = datetime.utcnow()
+    if action == "approve":
+        if not db.query(User).filter(User.email == req.email).first():
+            temp = secrets.token_urlsafe(9)
+            db.add(User(email=req.email, name=req.name, password=hash_password(temp), role="user"))
+            db.commit()
+            send_mail(
+                req.email, "You are in: Waferscope access approved",
+                f"<p>Hi {esc(req.name)},</p><p>Your Waferscope access request was approved.</p>"
+                f'<p>Sign in at <a href="{esc(FRONTEND_URL)}/login">{esc(FRONTEND_URL)}/login</a><br>'
+                f"Email: {esc(req.email)}<br>Temporary password: <b>{esc(temp)}</b></p>",
+            )
+            return f"Approved. {req.email} has been emailed their sign-in details."
+        db.commit()
+        return "Approved. That email already had an account."
+    db.commit()
+    send_mail(
+        req.email, "Waferscope access request",
+        f"<p>Hi {esc(req.name)},</p><p>Thanks for your interest. We could not approve your access request this time. "
+        f'You can still scan wafers as a guest at <a href="{esc(FRONTEND_URL)}/scan">{esc(FRONTEND_URL)}/scan</a>.</p>',
+    )
+    return f"Rejected. {req.email} has been told."
+
+
+@app.post("/auth/request", status_code=201)
+def request_access(body: AccessRequestBody, request: Request, db: Session = Depends(get_db)):
+    _rate_limit(request, "request", 5, 3600, "Too many requests from this network. Try again later.")
+    name, email, reason = body.name.strip(), body.email.strip().lower(), body.reason.strip()
+    if not (2 <= len(name) <= 80):
+        raise HTTPException(status_code=422, detail="Enter your name.")
+    if not EMAIL_RE.match(email) or len(email) > 200:
+        raise HTTPException(status_code=422, detail="Enter a valid email address.")
+    if len(reason) > 500:
+        raise HTTPException(status_code=422, detail="Keep the reason under 500 characters.")
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=409, detail="That email already has an account. Sign in instead.")
+    if db.query(AccessRequest).filter(AccessRequest.email == email, AccessRequest.status == "pending").first():
+        raise HTTPException(status_code=409, detail="A request for this email is already waiting.")
+    row = AccessRequest(name=name, email=email, reason=reason)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    if ADMIN_NOTIFY_EMAIL:
+        ok_link = f"{API_PUBLIC_URL}/admin/requests/{row.id}/approve?t={create_action_token(row.id, 'approve')}"
+        no_link = f"{API_PUBLIC_URL}/admin/requests/{row.id}/reject?t={create_action_token(row.id, 'reject')}"
+        send_mail(
+            ADMIN_NOTIFY_EMAIL, f"Waferscope access request from {name}",
+            f"<p><b>{esc(name)}</b> ({esc(email)}) asked for access.</p><p>{esc(reason) or '<i>No reason given.</i>'}</p>"
+            f'<p><a href="{ok_link}">Approve</a> &nbsp;|&nbsp; <a href="{no_link}">Reject</a></p>'
+            '<p style="color:#888">These links work for 7 days. You can also decide on the People page.</p>',
+        )
+    return {"status": "pending"}
+
+
+@app.get("/admin/requests")
+def list_requests(db: Session = Depends(get_db), admin: User = Depends(get_admin_user)):
+    rows = db.query(AccessRequest).filter(AccessRequest.status == "pending").order_by(AccessRequest.created_at).all()
+    return [{"id": r.id, "email": r.email, "name": r.name, "reason": r.reason or "", "created_at": r.created_at.isoformat()} for r in rows]
+
+
+@app.post("/admin/requests/{request_id}/{action}")
+def decide_request(request_id: int, action: str, db: Session = Depends(get_db), admin: User = Depends(get_admin_user)):
+    if action not in ("approve", "reject"):
+        raise HTTPException(status_code=404, detail="Unknown action")
+    row = db.query(AccessRequest).filter(AccessRequest.id == request_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Request not found")
+    message = _decide_request(db, row, action)
+    return {"status": row.status, "message": message}
+
+
+@app.get("/admin/requests/{request_id}/{action}", response_class=HTMLResponse)
+def decide_link_confirm(request_id: int, action: str, t: str = "", db: Session = Depends(get_db)):
+    """Opened from the email. It only asks for confirmation, so mail scanners that prefetch links decide nothing."""
+    rid, act = read_action_token(t)
+    if rid != request_id or act != action:
+        raise HTTPException(status_code=400, detail="This link is invalid or has expired.")
+    row = db.query(AccessRequest).filter(AccessRequest.id == rid).first()
+    if not row:
+        return _page("Not found", "That request no longer exists.")
+    if row.status != "pending":
+        return _page("Already decided", f"This request was already {esc(row.status)}.")
+    verb = "Approve" if act == "approve" else "Reject"
+    colour = "#c6ff3d" if act == "approve" else "#ff2e93"
+    form = (
+        f'<form method="post" action="{esc(API_PUBLIC_URL)}/admin/requests/{rid}/{act}/confirm">'
+        f'<input type="hidden" name="t" value="{esc(t)}">'
+        f'<button style="margin-top:14px;padding:12px 18px;border:2px solid #f4f4ef;border-radius:4px;background:{colour};'
+        f'color:#0a0a0f;font-weight:800;cursor:pointer">{verb} {esc(row.name)}</button></form>'
+    )
+    return _page(f"{verb} access?", f"{esc(row.name)} &lt;{esc(row.email)}&gt;<br>{esc(row.reason or 'No reason given.')}", form)
+
+
+@app.post("/admin/requests/{request_id}/{action}/confirm", response_class=HTMLResponse)
+def decide_link_do(request_id: int, action: str, t: str = Form(""), db: Session = Depends(get_db)):
+    rid, act = read_action_token(t)
+    if rid != request_id or act != action:
+        raise HTTPException(status_code=400, detail="This link is invalid or has expired.")
+    row = db.query(AccessRequest).filter(AccessRequest.id == rid).first()
+    if not row:
+        return _page("Not found", "That request no longer exists.")
+    return _page("Done", esc(_decide_request(db, row, act)))
 
 # ── Admin: User Management ──────────────────────────────────────
 @app.get("/admin/users")

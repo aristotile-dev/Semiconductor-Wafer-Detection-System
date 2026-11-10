@@ -4,7 +4,7 @@ import base64
 from groq import Groq
 
 
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 WAFER_QUESTION = """You are a semiconductor inspection expert.
 Does this image show a semiconductor wafer map, a wafer defect map, a wafer inspection image or a die map?
 These can be round or square, colour heatmaps, black and white defect maps, or grids of dies with failed dies marked.
