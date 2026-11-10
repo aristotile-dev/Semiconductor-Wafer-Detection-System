@@ -107,8 +107,8 @@
 .landing nav .req b { margin-left:2px; font-weight:700; animation:app-cursor 1s steps(2,jump-none) infinite; }
 @keyframes app-cursor { 50% { opacity:0; } }
 .landing nav .req:hover, .landing nav .req.on { background:var(--acid); color:#0a0a0f; }
-.landing .brand svg rect:last-child { animation:app-dieblink 1.6s steps(2,jump-none) infinite; }
+.landing .brand svg rect[fill="#ff2e93"] { animation:app-dieblink 1.6s steps(2,jump-none) infinite; }
 @keyframes app-dieblink { 50% { fill:#c6ff3d; } }
-@media (prefers-reduced-motion:reduce) { .landing .brand svg rect:last-child, .landing nav .req b { animation:none; } }
+@media (prefers-reduced-motion:reduce) { .landing .brand svg rect[fill="#ff2e93"], .landing nav .req b { animation:none; } }
 .landing nav .req.ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
 @media (max-width:700px) { .landing nav .links { display:none; } .landing nav { gap:12px; } }
