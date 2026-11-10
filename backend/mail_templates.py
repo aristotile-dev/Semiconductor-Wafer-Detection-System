@@ -15,6 +15,19 @@ def _button(label: str, href: str, colour: str, text: str = INK) -> str:
     )
 
 
+def _logo() -> str:
+    """The Waferscope mark in plain HTML: a lime ring around five light dies and one pink die."""
+    def die(colour: str) -> str:
+        bg = f"background:{colour};" if colour else ""
+        return f'<td width="5" height="5" style="width:5px;height:5px;{bg}font-size:0;line-height:0;">&nbsp;</td>'
+    rows = [(PAPER, PAPER, ""), (PAPER, PINK, PAPER), ("", PAPER, "")]
+    grid = "".join("<tr>" + "".join(die(c) for c in r) + "</tr>" for r in rows)
+    return (
+        f'<table role="presentation" cellpadding="0" cellspacing="0" style="width:28px;height:28px;border:2px solid {LIME};border-radius:50%;">'
+        f'<tr><td align="center" valign="middle"><table role="presentation" cellpadding="0" cellspacing="1" style="margin:0 auto;">{grid}</table></td></tr></table>'
+    )
+
+
 def _shell(preheader: str, headline: str, headline_accent: str, body: str, footer: str) -> str:
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -26,7 +39,7 @@ def _shell(preheader: str, headline: str, headline_accent: str, body: str, foote
   <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;">
     <tr><td style="padding:0 0 18px;">
       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-        <td style="width:26px;height:26px;background:{LIME};border-radius:50%;font-size:0;line-height:0;">&nbsp;</td>
+        <td>{_logo()}</td>
         <td style="padding-left:10px;font:800 15px {DISPLAY};color:{PAPER};letter-spacing:-.4px;">WAFERSCOPE</td>
       </tr></table>
     </td></tr>
