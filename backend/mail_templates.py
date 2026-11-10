@@ -16,15 +16,17 @@ def _button(label: str, href: str, colour: str, text: str = INK) -> str:
 
 
 def _logo() -> str:
-    """The Waferscope mark in plain HTML: a lime ring around five light dies and one pink die."""
+    """The Waferscope mark in plain HTML, drawn to the proportions of the SVG: ring, then a 3x3 grid of dies
+    (five light, one pink in the middle, three empty) sitting slightly right of and below the centre."""
     def die(colour: str) -> str:
-        bg = f"background:{colour};" if colour else ""
-        return f'<td width="5" height="5" style="width:5px;height:5px;{bg}font-size:0;line-height:0;">&nbsp;</td>'
+        bg = f"background:{colour};border-radius:1px;" if colour else ""
+        return f'<td width="4" height="4" style="width:4px;height:4px;{bg}font-size:0;line-height:0;">&nbsp;</td>'
     rows = [(PAPER, PAPER, ""), (PAPER, PINK, PAPER), ("", PAPER, "")]
     grid = "".join("<tr>" + "".join(die(c) for c in r) + "</tr>" for r in rows)
     return (
-        f'<table role="presentation" cellpadding="0" cellspacing="0" style="width:28px;height:28px;border:2px solid {LIME};border-radius:50%;">'
-        f'<tr><td align="center" valign="middle"><table role="presentation" cellpadding="0" cellspacing="1" style="margin:0 auto;">{grid}</table></td></tr></table>'
+        f'<table role="presentation" cellpadding="0" cellspacing="0" style="width:30px;height:30px;border:2px solid {LIME};border-radius:50%;">'
+        f'<tr><td align="center" valign="middle" style="padding:1px 0 0 1px;">'
+        f'<table role="presentation" cellpadding="0" cellspacing="1" style="margin:0 auto;">{grid}</table></td></tr></table>'
     )
 
 
