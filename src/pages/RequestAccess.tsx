@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import TopNav from "../components/TopNav";
 import FillWafer from "../components/FillWafer";
+import LockBox from "../components/LockBox";
 import { requestAccess } from "../api/client";
 import "../styles/landing.css";
 import "../styles/public.css";
@@ -57,6 +58,7 @@ export default function RequestAccess() {
         </section>
 
         <div className="rstagebox">
+          <LockBox done={done} sent={sent} />
           <FillWafer fill={fill} className={sent ? "v-save" : ""}>
             <div className={"read " + (sent || done === 3 ? "save" : "")}>
               <div className="num">{sent ? "In" : `${done}/3`}</div>

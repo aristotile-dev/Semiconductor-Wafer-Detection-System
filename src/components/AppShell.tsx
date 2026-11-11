@@ -43,6 +43,13 @@ export default function AppShell({ user, onLogout, children }: Props) {
     };
   }, [wake]);
   const picked = () => { quiet.current = Date.now() + 1400; window.clearTimeout(timer.current); held.current = false; setShow(false); };
+  // A click anywhere on the screen outside the dock tucks it away too.
+  const dock = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const tuck = (e: PointerEvent) => { if (dock.current && !dock.current.contains(e.target as Node)) picked(); };
+    window.addEventListener("pointerdown", tuck, { passive: true });
+    return () => window.removeEventListener("pointerdown", tuck);
+  }, []);
 
   useEffect(() => {
     const off = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setMenu(false); };
@@ -84,7 +91,7 @@ export default function AppShell({ user, onLogout, children }: Props) {
 
       <main>{children}</main>
 
-      <nav className={"dock" + (show ? "" : " away")} aria-label="Pages"
+      <nav ref={dock} className={"dock" + (show ? "" : " away")} aria-label="Pages"
         onPointerEnter={() => { held.current = true; wake(true); }}
         onPointerLeave={() => { held.current = false; wake(true); }}
         onFocus={() => wake(true)}>

@@ -92,7 +92,8 @@ export default function Scan() {
 
           <input ref={input} type="file" accept="image/png,image/jpeg" hidden onChange={e => { mine(e.target.files?.[0]); e.target.value = ""; }} />
           <button className={"gown" + (own ? " on" : "") + (over ? " over" : "")} onClick={() => input.current?.click()}>
-            <Icon name="up" size={22} /><span><b>{own ? own : "Drop your own wafer map"}</b><small>{own ? "Your image. Tap to pick another." : "PNG or JPG. Or drag it anywhere on this page."}</small></span>
+            <Icon name="up" size={22} /><span className="gt"><b>{own ? own : "Drop your own wafer map"}</b><small>{own ? "Your image. Tap to pick another." : "PNG or JPG. Or drag it anywhere on this page."}</small></span>
+            <span className="gr" aria-hidden="true"><i>PNG</i><i>JPG</i><u>{own ? "Change" : "Choose file"}</u></span>
           </button>
           {err && <p className="err" role="alert">{err}</p>}
         </section>
