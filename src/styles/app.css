@@ -1318,3 +1318,12 @@
 @media (min-width:1001px) {
   .app .scanpage.done .rodds, .app .scanpage.done .rexp { margin-top:clamp(44px, 7vh, 80px); }
 }
+
+/* iPad fixes. Request access: rows sit together under the banner (no stretched void). Scan chips: the wafer thumbnail stays a true circle in Safari. */
+@media (max-width:1000px) {
+  .landing .app.rqp { align-content:start; min-height:0; }
+  .lockbox { height:clamp(176px, 27vw, 250px); }
+}
+.app.gst .gcw { box-sizing:border-box; flex:none; position:relative; height:auto; aspect-ratio:1 / 1; }
+.app.gst .gcw .gcm { position:absolute; inset:3px; width:calc(100% - 6px); height:calc(100% - 6px); }
+@media (max-width:1000px) { .app.gst .gcw { width:44px; } }
