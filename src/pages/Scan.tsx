@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import TopNav from "../components/TopNav";
-import PublicFooter from "../components/PublicFooter";
 import DieStage from "../components/DieStage";
 import DieMap from "../components/DieMap";
 import Icon from "../components/Icons";
@@ -122,7 +121,6 @@ export default function Scan() {
           <div><span>Dies affected</span><b>{res ? (res.defect_ratio * 100).toFixed(1) + "%" : "–"}</b></div>
         </section>
       </div>
-      <PublicFooter />
     </div>
   );
 }

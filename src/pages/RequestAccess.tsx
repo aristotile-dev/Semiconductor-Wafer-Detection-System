@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import TopNav from "../components/TopNav";
-import PublicFooter from "../components/PublicFooter";
 import FillWafer from "../components/FillWafer";
 import { requestAccess } from "../api/client";
 import "../styles/landing.css";
@@ -66,7 +65,6 @@ export default function RequestAccess() {
           </FillWafer>
         </div>
       </div>
-      <PublicFooter />
     </div>
   );
 }
