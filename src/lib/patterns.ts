@@ -22,11 +22,15 @@ export const PATTERN_NAMES = Object.keys(PATTERNS);
 const BY_LOWER = Object.fromEntries(PATTERN_NAMES.map(n => [n.toLowerCase(), n]));
 export const canonPattern = (name: string): string => BY_LOWER[(name || "").toLowerCase()] ?? "None";
 
-/** Same formula and thresholds as backend/model_utils.py. Defects per die grow with the die: the defect ratio is
- *  measured for the reference 0.5 cm2 die, so a bigger die catches proportionally more of the damage. */
+/** Same formula and thresholds as backend/model_utils.py.
+ *  The defect ratio is the share of dies that are bad. Murphy's model wants defects per die, so the share is
+ *  turned into a Poisson defect density, AD = -ln(1 - share), measured for the reference 0.5 cm2 die. A bigger die
+ *  catches proportionally more of that damage. This keeps small defects at a high yield and lets a wafer that is
+ *  mostly dead fall to SCRAP, which a plain ratio never could. */
 export function murphy(ratio: number, dieArea = 0.5): number {
-  const ad = ratio * (dieArea / 0.5);
-  if (ad <= 0) return 100;
+  const share = Math.min(Math.max(ratio, 0), 0.999);
+  if (share <= 0) return 100;
+  const ad = -Math.log(1 - share) * (dieArea / 0.5);
   if (ad > 10) return 0;
   const y = ((1 - Math.exp(-ad)) / ad) ** 2;
   return Math.round(y * 1000) / 10;

@@ -49,11 +49,16 @@ def get_defect_density(image):
 
 
 def murphy_yield(defect_ratio, die_area_cm2=0.5, wafer_area_cm2=706.86):
-    """Murphy yield model. The defect ratio is measured for the reference 0.5 cm2 die, so a larger die
-    collects proportionally more of the damage: defects per die = ratio * die_area / 0.5."""
-    AD = defect_ratio * (die_area_cm2 / 0.5)
-    if AD <= 0:
+    """Murphy yield model.
+
+    The defect ratio is the share of the wafer that is bad. Murphy's model wants defects per die, so the share is
+    turned into a Poisson defect density, AD = -ln(1 - share), for the reference 0.5 cm2 die. A larger die collects
+    proportionally more of that damage. Small defects keep a high yield, and a wafer that is mostly dead can reach SCRAP.
+    """
+    share = min(max(defect_ratio, 0.0), 0.999)
+    if share <= 0:
         return 100.0
+    AD = -math.log(1 - share) * (die_area_cm2 / 0.5)
     if AD > 10:
         return 0.0
     yield_val = ((1 - math.exp(-AD)) / AD) ** 2
