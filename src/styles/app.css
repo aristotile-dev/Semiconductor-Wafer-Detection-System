@@ -1237,22 +1237,7 @@
 .app.gst .gfacts span, .app .scanpage .rfacts .facts span { white-space:nowrap; }
 @media (max-width:1000px) { .app.gst .gfacts b, .app .scanpage .rfacts .facts b { font-size:clamp(12px, 12.5cqw, 17px); } }
 
-/* ───────── Side rails (wide screens only) ───────── */
 .landing .app.gst, .landing .app.rqp { position:relative; }
-.rail { display:none; position:absolute; top:50%; transform:translateY(-50%); z-index:1; list-style:none; pointer-events:none; }
-.rail li span { writing-mode:vertical-rl; text-orientation:mixed; font:700 11px/1 var(--font-mono); letter-spacing:.24em; text-transform:uppercase; white-space:nowrap; }
-.rail-l { left:clamp(20px, 2.6vw, 56px); flex-direction:column; align-items:center; gap:0; }
-.rail-l li { display:grid; justify-items:center; gap:14px; padding-bottom:26px; position:relative; }
-.rail-l li:not(:last-child)::after { content:""; position:absolute; bottom:0; left:50%; width:1px; height:26px; background:#ffffff30; }
-.rail-l li b { display:grid; place-items:center; width:34px; height:34px; border:1px solid var(--acid); border-radius:2px; color:var(--acid); font:700 12px var(--font-mono); letter-spacing:.04em; }
-.rail-l li span { color:#b9b9c6; }
-.rail-r { right:clamp(20px, 2.6vw, 56px); flex-direction:column; align-items:center; gap:22px; }
-.rail-r li { padding:16px 9px; border-radius:3px; border:1px solid #ffffff3a; color:#d6d6e0; }
-.rail-r li.t0 { background:var(--acid); border-color:var(--acid); color:#0a0a0f; transform:rotate(-2.5deg); }
-.rail-r li.t1 { transform:rotate(1.8deg); }
-.rail-r li.t2 { background:var(--hot); border-color:var(--hot); color:#0a0a0f; transform:rotate(-1.4deg); }
-@media (min-width:1500px) { .rail { display:flex; } }
-@media (min-width:1500px) and (max-height:700px) { .rail-l li span, .rail-r li span { font-size:10px; } .rail-l li { padding-bottom:18px; gap:10px; } .rail-r { gap:14px; } .rail-r li { padding:12px 8px; } }
 
 /* ───────── Refinements: shorter bottom cards, compact stepper, straight right tabs ───────── */
 @media (min-width:1001px) {
@@ -1263,12 +1248,13 @@
   .app.gst .gbtn .btn { height:40px; }
   .app.gst .gfacts > div { padding:8px 14px; }
 }
-/* left stepper: tight, connected */
-.rail-l li { gap:10px; padding-bottom:12px; }
-.rail-l li:not(:last-child)::after { height:12px; }
-.rail-l li span { letter-spacing:.16em; }
-/* right tabs: straight, one width, one height */
-.rail-r { gap:14px; }
-.rail-r li, .rail-r li.t0, .rail-r li.t1, .rail-r li.t2 { transform:none; width:34px; height:172px; padding:0; display:flex; align-items:center; justify-content:center; }
-.rail-r li span { letter-spacing:.2em; }
-@media (min-width:1500px) and (max-height:700px) { .rail-r { gap:12px; } .rail-r li, .rail-r li.t0, .rail-r li.t1, .rail-r li.t2 { height:150px; padding:0; } .rail-l li { padding-bottom:10px; gap:8px; } }
+
+/* ───────── Die strips in the side margins (wide screens) ───────── */
+.landing .app.gst { position:relative; }
+.dstrip { display:none; position:absolute; top:112px; bottom:34px; width:29px; z-index:1; pointer-events:none; }
+.dstrip-l { left:var(--pad); } .dstrip-r { right:var(--pad); }
+.strip-col { height:100%; display:grid; grid-template-columns:repeat(2, 12px); gap:5px; }
+.strip-col s { background:#1b1b25; border-radius:2px; }
+.strip-col s.dim { background:#ffffff26; } .strip-col s.on { background:var(--acid); } .strip-col s.hot { background:var(--hot); }
+@media (min-width:1500px) { .dstrip { display:block; } }
+@media (min-width:1500px) and (max-height:700px) { .dstrip { top:100px; } }
