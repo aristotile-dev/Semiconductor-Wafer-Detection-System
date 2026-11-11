@@ -9,6 +9,10 @@ import History from "./pages/History";
 import Login from "./pages/Login";
 import RequestAccess from "./pages/RequestAccess";
 import Scan from "./pages/Scan";
+function RouteLoading() {
+  return <div className="routeload" role="status" aria-label="Loading"><i /></div>;
+}
+
 const Landing = lazy(() => import("./pages/Landing"));
 import UserManagement from "./pages/UserManagement";
 import Reports from "./pages/Reports";
@@ -50,7 +54,7 @@ export default function App() {
   const token = localStorage.getItem("wafer_token");
 
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<RouteLoading />}>
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/scan" element={<Scan />} />

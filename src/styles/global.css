@@ -21,3 +21,8 @@ button { font-family:inherit; cursor:pointer; border:none; background:none; colo
 input, select, textarea { font-family:inherit; color:inherit; }
 
 @media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation-duration:.01ms !important; transition:none !important; } }
+
+/* Shown while a page chunk loads, so a route change never goes blank. */
+.routeload { position:fixed; inset:0 0 auto 0; z-index:50; height:3px; background:#ffffff14; overflow:hidden; }
+.routeload i { position:absolute; inset:0 auto 0 0; width:38%; background:var(--acid); animation:routeload 1s cubic-bezier(.65,0,.35,1) infinite; }
+@keyframes routeload { from { transform:translateX(-100%); } to { transform:translateX(280%); } }

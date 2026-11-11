@@ -7,8 +7,41 @@
     <meta name="color-scheme" content="dark" />
     <meta name="description" content="Waferscope finds the defect pattern on a wafer map, estimates yield and gives a save, review or scrap verdict." />
     <title>Waferscope: find the defect before it ships</title>
+    <style>
+      /* Opening screen. Inline on purpose: it has to paint before any script or stylesheet arrives, and it stays up
+         until the fonts and the first page are ready, so nothing flashes, swaps fonts or jumps as it opens. */
+      html { background:#0a0a0f; }
+      body { margin:0; background:#0a0a0f; }
+      #boot { position:fixed; inset:0; z-index:99999; display:grid; place-items:center; background:#0a0a0f; transition:opacity .45s cubic-bezier(.22,1,.36,1), visibility .45s; }
+      #boot.done { opacity:0; visibility:hidden; pointer-events:none; }
+      #boot .bx { display:grid; justify-items:center; gap:22px; }
+      #boot .mark { width:72px; height:72px; }
+      #boot .ring { transform-origin:12px 12px; animation:bt 2.4s linear infinite; }
+      #boot .die { animation:bd 1s steps(2,jump-none) infinite; }
+      #boot .word { font:900 15px/1 'Arial Black','Helvetica Neue',Arial,sans-serif; letter-spacing:-.03em; color:#f4f4f0; }
+      #boot .bar { position:relative; width:168px; height:3px; background:#ffffff1f; overflow:hidden; }
+      #boot .bar i { position:absolute; inset:0 auto 0 0; width:42%; background:#c6ff3d; animation:bs 1.05s cubic-bezier(.65,0,.35,1) infinite; }
+      #boot .tag { font:600 11px/1 'Courier New',monospace; letter-spacing:.18em; color:#9a9aa8; text-transform:uppercase; }
+      @keyframes bt { to { transform:rotate(360deg); } }
+      @keyframes bd { 50% { fill:#c6ff3d; } }
+      @keyframes bs { from { transform:translateX(-100%); } to { transform:translateX(240%); } }
+      @media (prefers-reduced-motion:reduce) { #boot .ring, #boot .die, #boot .bar i { animation:none; } }
+    </style>
+    <noscript><style>#boot { display:none; }</style></noscript>
   </head>
   <body>
+    <div id="boot" role="status" aria-live="polite" aria-label="Loading Waferscope">
+      <div class="bx">
+        <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+          <circle class="ring" cx="12" cy="12" r="10.5" fill="none" stroke="#c6ff3d" stroke-width="1.6" stroke-dasharray="52 14" />
+          <g fill="#f4f4f0"><rect x="7" y="7" width="3" height="3" rx=".5"/><rect x="11" y="7" width="3" height="3" rx=".5"/><rect x="7" y="11" width="3" height="3" rx=".5"/><rect x="15" y="11" width="3" height="3" rx=".5"/><rect x="11" y="15" width="3" height="3" rx=".5"/></g>
+          <rect class="die" x="11" y="11" width="3" height="3" rx=".5" fill="#ff2e93"/>
+        </svg>
+        <div class="word">WAFERSCOPE</div>
+        <div class="bar"><i></i></div>
+        <div class="tag">Warming up the scanner</div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
