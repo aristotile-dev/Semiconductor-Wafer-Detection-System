@@ -6,7 +6,7 @@ import DieMap from "../components/DieMap";
 import Icon from "../components/Icons";
 import { makeSample } from "../components/WaferDrop";
 import { predictGuest, PredictResult } from "../api/client";
-import { PATTERN_NAMES } from "../lib/patterns";
+import { PATTERN_NAMES, dieMap, murphy, verdictFor } from "../lib/patterns";
 import sampleResults from "../lib/sampleResults.json";
 import "../styles/landing.css";
 import "../styles/public.css";
@@ -41,11 +41,16 @@ export default function Scan() {
     } finally { if (id === run.current) setBusy(false); }
   };
 
-  // The nine samples are real wafer maps that were scanned once by the live model. Their results are bundled,
-  // so tapping one answers at once. Only a map the visitor brings goes to the API.
+  // The nine samples are demos. The pattern and confidence are what the live model said about a real wafer map
+  // of that class, bundled so a tap answers at once. "Dies affected" and the yield come from the die map drawn on
+  // screen, so they always agree with what the visitor sees (a clean wafer shows 0% and 100%). Only a map the
+  // visitor brings goes to the API, and then every number is the live one.
   const bundled = (name: string): PredictResult | null => {
     const key = Object.keys(sampleResults).find(k => k.toLowerCase() === name.toLowerCase());
-    return key ? ({ ...(sampleResults as Record<string, any>)[key], gradcam: null } as PredictResult) : null;
+    if (!key) return null;
+    const ratio = dieMap(name).ratio;
+    const y = murphy(ratio);
+    return { ...(sampleResults as Record<string, any>)[key], defect_ratio: ratio, yield_pct: y, decision: verdictFor(y).toUpperCase(), gradcam: null } as PredictResult;
   };
   const sample = async (name: string) => {
     const ready = bundled(name);
