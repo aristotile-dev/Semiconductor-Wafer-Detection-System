@@ -117,3 +117,10 @@
 .landing .brand { padding:9px 0; min-height:44px; }
 @media (max-width:520px) { .landing .hero { --F:clamp(36px, 11.6vw, 56px); } }
 @media (max-width:520px) { .landing h1 br.m { display:none; } .landing .hero { --F:clamp(34px, 10.6vw, 56px); } }
+
+/* Very small phones: the nav tab no longer runs off the edge. */
+@media (max-width:360px) {
+  .landing nav { gap:8px; }
+  .landing nav .brand { font-size:12px; gap:6px; }
+  .landing nav .req { margin-left:0; padding:0 9px; font-size:11px; letter-spacing:.02em; }
+}

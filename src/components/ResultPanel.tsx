@@ -83,6 +83,9 @@ export default function ResultPanel({ result, variant = "stack", liveSource }: P
     <div className="gauge"><span>Yield vs thresholds</span>
       <div className="zones"><i style={{ width: `${Math.min(100, result.yield_pct)}%`, background: COLOR[v] }} /><u style={{ left: "40%" }} /><u style={{ left: "70%" }} /></div>
       <div className="scale"><span style={{ left: 0 }}>0</span><span style={{ left: "40%" }}>40</span><span style={{ left: "70%" }}>70</span><span style={{ right: 0 }}>100</span></div>
+      {result.yield_pct >= 70 && result.decision === "REVIEW" && (
+        <p className="held">Yield is in the save range, but {result.defect_type} is a systematic pattern, so the wafer is held for review.</p>
+      )}
     </div>
   );
   const factsEl = <section className="facts">{cells}{gauge}</section>;

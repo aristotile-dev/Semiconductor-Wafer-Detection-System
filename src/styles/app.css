@@ -1327,3 +1327,7 @@
 .app.gst .gcw { box-sizing:border-box; flex:none; position:relative; height:auto; aspect-ratio:1 / 1; }
 .app.gst .gcw .gcm { position:absolute; inset:3px; width:calc(100% - 6px); height:calc(100% - 6px); }
 @media (max-width:1000px) { .app.gst .gcw { width:44px; } }
+
+/* A systematic pattern holds a high-yield wafer for review; say so under the gauge. */
+.app .gauge .held { margin-top:30px; font:500 12px/1.45 var(--font-mono); color:var(--warn); }
+.app .scanpage .gaugetile .gauge .held { margin-top:34px; }
