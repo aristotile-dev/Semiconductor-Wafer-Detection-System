@@ -1276,4 +1276,6 @@
 @media (min-width:1500px) {
   .landing .app.gst { max-width:none; padding-inline:calc(var(--pad) + 26px + clamp(48px, calc(5.75vw / var(--z)), 120px)); grid-template-columns:minmax(0,1fr) minmax(0,var(--S)); justify-content:stretch; }
   .app.gst h1.one { font-size:min(10.5cqw, 64px); }
+  /* the wafer block sits on the same baseline as the left column, so the space under the SAVE sticker matches the left side */
+  .app.gst .gstage { align-self:end; margin-top:0; }
 }
