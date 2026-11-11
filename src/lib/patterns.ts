@@ -17,10 +17,18 @@ export const PATTERNS: Record<string, Fn> = {
 
 export const PATTERN_NAMES = Object.keys(PATTERNS);
 
-/** Same formula and thresholds as backend/model_utils.py: defects per die equals the defect ratio. */
-export function murphy(ratio: number): number {
-  if (ratio <= 0) return 100;
-  const y = ((1 - Math.exp(-ratio)) / ratio) ** 2;
+/** The model names its classes "Edge-Loc", "Edge-Ring" and "none"; the chips say "Edge-loc", "Edge-ring" and "None".
+ *  Resolve any spelling to the key used above, and fall back to "None" for a name nobody knows. */
+const BY_LOWER = Object.fromEntries(PATTERN_NAMES.map(n => [n.toLowerCase(), n]));
+export const canonPattern = (name: string): string => BY_LOWER[(name || "").toLowerCase()] ?? "None";
+
+/** Same formula and thresholds as backend/model_utils.py. Defects per die grow with the die: the defect ratio is
+ *  measured for the reference 0.5 cm2 die, so a bigger die catches proportionally more of the damage. */
+export function murphy(ratio: number, dieArea = 0.5): number {
+  const ad = ratio * (dieArea / 0.5);
+  if (ad <= 0) return 100;
+  if (ad > 10) return 0;
+  const y = ((1 - Math.exp(-ad)) / ad) ** 2;
   return Math.round(y * 1000) / 10;
 }
 
@@ -35,7 +43,7 @@ export function dieMap(name: string, n = 25) {
     const x = (i - (n - 1) / 2) / ((n - 1) / 2), y = (j - (n - 1) / 2) / ((n - 1) / 2), r = Math.hypot(x, y);
     if (r > 0.98) continue;
     total++;
-    const b = PATTERNS[name](r, x, y, i, j);
+    const b = PATTERNS[canonPattern(name)](r, x, y, i, j);
     if (b) bad++;
     dies.push({ i, j, bad: b });
   }
@@ -50,7 +58,7 @@ export function drawGlyph(c: HTMLCanvasElement, name: string, active: boolean) {
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
     const x = (i - (n - 1) / 2) / ((n - 1) / 2), y = (j - (n - 1) / 2) / ((n - 1) / 2), r = Math.hypot(x, y);
     if (r > 1.0) continue;
-    const bad = PATTERNS[name](r, x, y, i, j);
+    const bad = PATTERNS[canonPattern(name)](r, x, y, i, j);
     g.fillStyle = bad ? (active ? "#0a0a0f" : "#ff2e93") : (active ? "#ffffff66" : "#3a3a48");
     g.fillRect(i * s + 0.5, j * s + 0.5, s - 1, s - 1);
   }

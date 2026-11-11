@@ -49,9 +49,9 @@ def get_defect_density(image):
 
 
 def murphy_yield(defect_ratio, die_area_cm2=0.5, wafer_area_cm2=706.86):
-    num_dies        = wafer_area_cm2 / die_area_cm2
-    defects_per_die = defect_ratio * num_dies * die_area_cm2 / wafer_area_cm2
-    AD              = defects_per_die
+    """Murphy yield model. The defect ratio is measured for the reference 0.5 cm2 die, so a larger die
+    collects proportionally more of the damage: defects per die = ratio * die_area / 0.5."""
+    AD = defect_ratio * (die_area_cm2 / 0.5)
     if AD <= 0:
         return 100.0
     if AD > 10:

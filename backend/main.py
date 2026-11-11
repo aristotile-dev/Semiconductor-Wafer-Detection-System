@@ -135,6 +135,16 @@ def _verify_wafer(image: PILImage.Image) -> None:
         raise HTTPException(status_code=400, detail=NOT_WAFER)
 
 
+def _scan(image: PILImage.Image, die_area: float):
+    """Run the wafer check and the model side by side (the check is a network call, the model is CPU work),
+    so a valid wafer costs the slower of the two instead of their sum."""
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        job = pool.submit(predict, image, get_model(), die_area)
+        _verify_wafer(image)  # raises 400 for a non-wafer; the model result is then simply dropped
+        return job.result()
+
+
 _hits: dict[str, list[float]] = {}
 
 
@@ -419,9 +429,7 @@ async def predict_endpoint(
 ):
     try:
         image = _image_from_upload(file)
-        _verify_wafer(image)
-        result = predict(image, get_model(), die_area)
-        return result
+        return _scan(image, die_area)
     except HTTPException:
         raise
     except Exception as e:
@@ -436,8 +444,7 @@ async def predict_guest_endpoint(request: Request, file: UploadFile = File(...))
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid input: that file is not an image.")
     try:
-        _verify_wafer(image)
-        return predict(image, get_model(), 0.5)
+        return _scan(image, 0.5)
     except HTTPException:
         raise
     except Exception as e:
@@ -446,10 +453,15 @@ async def predict_guest_endpoint(request: Request, file: UploadFile = File(...))
 @app.post("/predict-draw")
 async def predict_draw_endpoint(payload: DrawRequest, current_user: User = Depends(get_current_user)):
     try:
-        image  = _image_from_base64(payload.image_base64)
+        try:
+            image = _image_from_base64(payload.image_base64)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid input: the drawing could not be read.")
         image  = _apply_wafer_mask(image)
         result = predict(image, get_model(), payload.die_area)
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -51,10 +51,10 @@ export default function YieldAnalysis({ dieArea, onDieAreaChange }: Props) {
   const avgRatio = scans.reduce((a, s) => a + s.ratio, 0) / scans.length;
   const whatIf = useMemo(() => {
     const pts: { a: number; y: number }[] = [];
-    for (let a = 0.1; a <= 2.001; a += 0.1) pts.push({ a: Math.round(a * 10) / 10, y: murphy(avgRatio * (a / 0.5)) });
+    for (let a = 0.1; a <= 2.001; a += 0.1) pts.push({ a: Math.round(a * 10) / 10, y: murphy(avgRatio, a) });
     return pts;
   }, [avgRatio]);
-  const whatNow = murphy(avgRatio * (dieArea / 0.5));
+  const whatNow = murphy(avgRatio, dieArea);
 
   const mix = useMemo(() => ({
     save: scans.filter(s => s.y >= 70).length,

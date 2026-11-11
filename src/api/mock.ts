@@ -38,8 +38,7 @@ function fakePredict(seedStr: string, dieArea: number) {
   const fromName = PATTERN_NAMES.find(n => seedStr.toLowerCase().startsWith("sample-" + n.toLowerCase()));
   const name = fromName ?? PATTERN_NAMES[h % PATTERN_NAMES.length];
   const { ratio } = dieMap(name);
-  const adj = ratio * (dieArea / 0.5);
-  const y = murphy(adj);
+  const y = murphy(ratio, dieArea);
   const conf = 82 + (h % 170) / 10;
   const probs: Record<string, number> = {};
   let rest = 100 - conf;
@@ -47,7 +46,7 @@ function fakePredict(seedStr: string, dieArea: number) {
   probs[name] = Math.round(conf * 10) / 10;
   return {
     defect_type: name, confidence: Math.round(conf * 10) / 10, all_probs: probs,
-    yield_pct: y, decision: y >= 70 ? "SAVE" : y >= 40 ? "REVIEW" : "SCRAP", defect_ratio: Math.round(adj * 1000) / 1000, gradcam: null
+    yield_pct: y, decision: y >= 70 ? "SAVE" : y >= 40 ? "REVIEW" : "SCRAP", defect_ratio: Math.round(ratio * 1000) / 1000, gradcam: null
   };
 }
 
@@ -107,7 +106,7 @@ function route(cfg: InternalAxiosRequestConfig): { status: number; data: any } {
   if (url === "/explain") return { status: 200, data: { explanation: `Step 1: Pattern\nThe model reads this as ${b.defect_type} with ${b.confidence}% confidence.\nStep 2: Likely cause\nThis signature usually points at a process step that acts on the whole wafer edge or a localised tool issue. Check the last equipment run on the lot.\nStep 3: Action\n${b.decision === "SAVE" ? "Ship it. Keep monitoring the lot." : b.decision === "REVIEW" ? "Hold for engineering review before shipping." : "Scrap the wafer and open a defect report."}\n(Mock analysis, not the real model.)` } };
   if (url === "/chat") return { status: 200, data: { reply: "This is the mock assistant. Connect the real backend to get live expert answers." } };
   if (url === "/yield-curve") {
-    const pts = []; for (let a = 0.1; a <= 2.01; a += 0.1) pts.push({ die_area: Math.round(a * 10) / 10, yield_pct: murphy(b.defect_ratio * (a / 0.5)) });
+    const pts = []; for (let a = 0.1; a <= 2.01; a += 0.1) pts.push({ die_area: Math.round(a * 10) / 10, yield_pct: murphy(b.defect_ratio, a) });
     return { status: 200, data: { points: pts } };
   }
   if (url === "/history/save") {

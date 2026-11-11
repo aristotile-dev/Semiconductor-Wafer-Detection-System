@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { PATTERNS, dieMap } from "../lib/patterns";
+import { dieMap } from "../lib/patterns";
 
 interface Props { name: string; /** replay the center-out reveal when this changes */ replay?: string | number; children?: React.ReactNode; className?: string; }
 
@@ -16,7 +16,7 @@ export default function DieStage({ name, replay, children, className = "" }: Pro
     c.width = S * dpr; c.height = S * dpr;
     const g = c.getContext("2d")!;
     g.scale(dpr, dpr);
-    const { dies } = dieMap(name in PATTERNS ? name : "None", N);
+    const { dies } = dieMap(name, N);
     const s = S / N, cx = S / 2;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const start = performance.now(), D = reduce ? 1 : 900;

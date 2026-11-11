@@ -1213,3 +1213,18 @@
 .app.gst .gbox.idle .gscan { font:700 13px var(--font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--mute); animation:app-gpulse 1.2s ease-in-out infinite; }
 @keyframes app-gpulse { 50% { opacity:.35; } }
 @media (prefers-reduced-motion:reduce) { .app.gst .gbox.idle .gscan { animation:none; } }
+
+/* ───────── Fixes from the phone and tablet audit ───────── */
+/* Request access: the title must never be wider than the form column. */
+.app.rqp .rl { grid-template-columns:minmax(0,1fr); }
+.app.rqp .rl > * { min-width:0; }
+.app.rqp h1.one { font-size:min(8.8cqw, 76px); }
+.app.lgp h1.one { font-size:clamp(40px, 12.5cqw, 68px); }
+@media (max-width:640px) {
+  .app.gst .gbtn .btn { white-space:nowrap; padding:0 10px; font-size:14px; }
+  .app.gst .gc b { font-size:12px; }
+  .app.gst .stage .ticks { inset:-2.4%; }
+  .app.rqp .stage .ticks { inset:-2.4%; }
+  .app .chips1 button, .app .chips1 .chip { min-height:40px; }
+  .app .wd-cap button { min-height:40px; padding:10px 0; }
+}
