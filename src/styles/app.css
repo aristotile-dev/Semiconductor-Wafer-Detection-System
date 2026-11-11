@@ -1249,12 +1249,24 @@
   .app.gst .gfacts > div { padding:8px 14px; }
 }
 
-/* ───────── Die strips in the side margins (wide screens) ───────── */
+/* ───────── Side rulers (wide screens) ───────── */
 .landing .app.gst { position:relative; }
-.dstrip { display:none; position:absolute; top:112px; bottom:34px; width:29px; z-index:1; pointer-events:none; }
-.dstrip-l { left:var(--pad); } .dstrip-r { right:var(--pad); }
-.strip-col { height:100%; display:grid; grid-template-columns:repeat(2, 12px); gap:5px; }
-.strip-col s { background:#1b1b25; border-radius:2px; }
-.strip-col s.dim { background:#ffffff26; } .strip-col s.on { background:var(--acid); } .strip-col s.hot { background:var(--hot); }
-@media (min-width:1500px) { .dstrip { display:block; } }
-@media (min-width:1500px) and (max-height:700px) { .dstrip { top:100px; } }
+.ruler { display:none; position:absolute; top:112px; bottom:34px; width:26px; z-index:1; pointer-events:none; }
+.ruler-l { left:var(--pad); border-left:1px solid #ffffff1f;
+  background:
+    repeating-linear-gradient(to bottom, #ffffff47 0 1px, transparent 1px 12px) left/6px 100% no-repeat,
+    repeating-linear-gradient(to bottom, #ffffff66 0 1px, transparent 1px 60px) left/12px 100% no-repeat,
+    repeating-linear-gradient(to bottom, #ffffffb3 0 1px, transparent 1px 120px) left/18px 100% no-repeat; }
+.ruler-r { right:var(--pad); border-right:1px solid #ffffff1f;
+  background:
+    repeating-linear-gradient(to bottom, #ffffff47 0 1px, transparent 1px 12px) right/6px 100% no-repeat,
+    repeating-linear-gradient(to bottom, #ffffff66 0 1px, transparent 1px 60px) right/12px 100% no-repeat,
+    repeating-linear-gradient(to bottom, #ffffffb3 0 1px, transparent 1px 120px) right/18px 100% no-repeat; }
+.ruler::before { content:""; position:absolute; top:0; height:2px; width:26px; background:var(--acid); }
+.ruler-l::before { left:-1px; } .ruler-r::before { right:-1px; }
+.ruler::after { content:""; position:absolute; bottom:0; height:1px; width:18px; background:#ffffffb3; }
+.ruler-l::after { left:0; } .ruler-r::after { right:0; }
+.ruler i { position:absolute; transform:translateY(-50%); font:600 9px/1 var(--font-mono); font-style:normal; letter-spacing:.14em; color:var(--mute); }
+.ruler-l i { left:30px; } .ruler-r i { right:30px; }
+@media (min-width:1500px) { .ruler { display:block; } }
+@media (min-width:1500px) and (max-height:700px) { .ruler { top:100px; } }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import TopNav from "../components/TopNav";
 import DieStage from "../components/DieStage";
-import DieStrips from "../components/DieStrips";
+import SideRulers from "../components/SideRulers";
 import DieMap from "../components/DieMap";
 import Icon from "../components/Icons";
 import { makeSample } from "../components/WaferDrop";
@@ -76,7 +76,7 @@ export default function Scan() {
       <div className="app gst" role="main"
         onDragOver={e => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
         onDrop={e => { e.preventDefault(); setOver(false); mine(e.dataTransfer.files?.[0]); }}>
-        <DieStrips />
+        <SideRulers />
         <section className="gl">
           <h1 className="one"><span>Try </span><em>it now.</em></h1>
           <p className="gsub">No account. Tap a wafer, or drop your own map.</p>
