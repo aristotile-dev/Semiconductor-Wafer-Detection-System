@@ -1228,3 +1228,11 @@
   .app .chips1 button, .app .chips1 .chip { min-height:40px; }
   .app .wd-cap button { min-height:40px; padding:10px 0; }
 }
+
+/* Result facts: the pattern name ("Near-full", "Edge-Ring") is the longest value, so its cell gets more room and the
+   type scales with the cell instead of the window. */
+.app.gst .gfacts, .app .scanpage .rfacts .facts { grid-template-columns:1.5fr 1fr 1fr; }
+.app.gst .gfacts > div, .app .scanpage .rfacts .facts > div { padding:12px 14px; container-type:inline-size; }
+.app.gst .gfacts b, .app .scanpage .rfacts .facts b { font-size:clamp(12px, 12.5cqw, 18px); white-space:nowrap; }
+.app.gst .gfacts span, .app .scanpage .rfacts .facts span { white-space:nowrap; }
+@media (max-width:1000px) { .app.gst .gfacts b, .app .scanpage .rfacts .facts b { font-size:clamp(12px, 12.5cqw, 17px); } }
