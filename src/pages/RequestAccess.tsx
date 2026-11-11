@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import TopNav from "../components/TopNav";
 import FillWafer from "../components/FillWafer";
-import SideRails from "../components/SideRails";
 import { requestAccess } from "../api/client";
 import "../styles/landing.css";
 import "../styles/public.css";
@@ -34,7 +33,6 @@ export default function RequestAccess() {
       <div className="grain" />
       <TopNav />
       <div className="app rqp" role="main">
-        <SideRails steps={["Your name", "Your email", "Why you want in"]} tags={["Approved by hand", "Reply by mail", "Free"]} />
         <section className="rl">
           <h1 className="one"><span>Ask for </span><em>access.</em></h1>
           {sent ? (
