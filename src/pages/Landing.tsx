@@ -23,7 +23,7 @@ export default function Landing() {
 
   const stats = useMemo(() => {
     const y = murphy(dieMap(cur).ratio);
-    return { y: (Number.isInteger(y) ? y : y.toFixed(1)) + "%", v: verdictFor(y) };
+    return { y: (Number.isInteger(y) ? y : y.toFixed(1)) + "%", v: verdictFor(y, cur) };
   }, [cur]);
 
   // Ticker: repeat the unit until it is wider than the viewport, then duplicate it so the loop has no gap.

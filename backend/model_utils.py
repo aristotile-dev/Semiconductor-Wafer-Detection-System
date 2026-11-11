@@ -165,6 +165,9 @@ def predict(image: PILImage.Image, model, die_area_cm2=0.5):
         decision = "REVIEW"
     else:
         decision = "SCRAP"
+    # A systematic pattern points at a process problem, so even a high yield is held for review.
+    if decision == "SAVE" and defect_type in ("Center", "Donut", "Edge-Ring", "Scratch"):
+        decision = "REVIEW"
 
     # Generate Grad-CAM
     try:

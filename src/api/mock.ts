@@ -4,7 +4,7 @@
  * State lives in localStorage so a reload keeps it. Nothing here ships to production builds.
  */
 import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from "axios";
-import { PATTERN_NAMES, dieMap, murphy } from "../lib/patterns";
+import { PATTERN_NAMES, dieMap, murphy, verdictFor } from "../lib/patterns";
 
 const KEY = "wafer_mock_db";
 
@@ -46,7 +46,7 @@ function fakePredict(seedStr: string, dieArea: number) {
   probs[name] = Math.round(conf * 10) / 10;
   return {
     defect_type: name, confidence: Math.round(conf * 10) / 10, all_probs: probs,
-    yield_pct: y, decision: y >= 70 ? "SAVE" : y >= 40 ? "REVIEW" : "SCRAP", defect_ratio: Math.round(ratio * 1000) / 1000, gradcam: null
+    yield_pct: y, decision: verdictFor(y, name).toUpperCase(), defect_ratio: Math.round(ratio * 1000) / 1000, gradcam: null
   };
 }
 

@@ -37,7 +37,13 @@ export function murphy(ratio: number, dieArea = 0.5): number {
 }
 
 export type Verdict = "save" | "review" | "scrap";
-export const verdictFor = (y: number): Verdict => (y >= 70 ? "save" : y >= 40 ? "review" : "scrap");
+/** Systematic patterns point at a process problem, not a stray particle, so even a high yield is held for review.
+ *  Same rule as backend/model_utils.py. */
+const SYSTEMATIC = new Set(["Edge-ring", "Donut", "Scratch", "Center"]);
+export const verdictFor = (y: number, pattern = ""): Verdict => {
+  const v: Verdict = y >= 70 ? "save" : y >= 40 ? "review" : "scrap";
+  return v === "save" && SYSTEMATIC.has(canonPattern(pattern)) ? "review" : v;
+};
 
 /** Walk the die grid once: which dies are bad, and how many. */
 export function dieMap(name: string, n = 25) {

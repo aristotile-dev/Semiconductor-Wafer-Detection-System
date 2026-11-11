@@ -51,7 +51,7 @@ export default function Scan() {
     if (!key) return null;
     const ratio = dieMap(name).ratio;
     const y = murphy(ratio);
-    return { ...(sampleResults as Record<string, any>)[key], defect_ratio: ratio, yield_pct: y, decision: verdictFor(y).toUpperCase(), gradcam: null } as PredictResult;
+    return { ...(sampleResults as Record<string, any>)[key], defect_ratio: ratio, yield_pct: y, decision: verdictFor(y, name).toUpperCase(), gradcam: null } as PredictResult;
   };
   const sample = async (name: string) => {
     const ready = bundled(name);
