@@ -7,6 +7,7 @@
   --font-body:'Schibsted Grotesk Variable',system-ui,sans-serif;
   --font-display:'Unbounded Variable',system-ui,sans-serif;
   --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  --z:1;
   color-scheme:dark;
 }
 
@@ -26,3 +27,13 @@ input, select, textarea { font-family:inherit; color:inherit; }
 .routeload { position:fixed; inset:0 0 auto 0; z-index:50; height:3px; background:#ffffff14; overflow:hidden; }
 .routeload i { position:absolute; inset:0 auto 0 0; width:38%; background:var(--acid); animation:routeload 1s cubic-bezier(.65,0,.35,1) infinite; }
 @keyframes routeload { from { transform:translateX(-100%); } to { transform:translateX(280%); } }
+
+/* Wide screens: scale the whole layout up so a big monitor shows a bigger page, not the same page lost in the middle.
+   Everything is sized in the same units, so one zoom factor keeps every proportion. 100svh and 100vw are divided by
+   --z wherever they are used, otherwise the page would come out taller or wider than the window. */
+#root { zoom:var(--z); }
+@media (min-width:1700px) { :root { --z:1.1; } }
+@media (min-width:1900px) { :root { --z:1.25; } }
+@media (min-width:2300px) { :root { --z:1.5; } }
+@media (min-width:2800px) { :root { --z:1.8; } }
+@media (min-width:3400px) { :root { --z:2.2; } }
