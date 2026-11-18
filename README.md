@@ -21,6 +21,7 @@
 </p>
 
 <!-- translations:start -->
+<p align="center"><sub>Also available in: <a href="docs/translations/README.ta.md">தமிழ்</a> · <a href="docs/translations/README.hi.md">हिन्दी</a> · <a href="docs/translations/README.te.md">తెలుగు</a> · <a href="docs/translations/README.ml.md">മലയാളം</a> · <a href="docs/translations/README.kn.md">ಕನ್ನಡ</a> · <a href="docs/translations/README.bn.md">বাংলা</a> · <a href="docs/translations/README.es.md">Español</a> · <a href="docs/translations/README.fr.md">Français</a> · <a href="docs/translations/README.de.md">Deutsch</a> · <a href="docs/translations/README.pt-BR.md">Português</a> · <a href="docs/translations/README.ja.md">日本語</a> · <a href="docs/translations/README.zh-CN.md">简体中文</a> · <a href="docs/translations/README.ar.md">العربية</a></sub></p>
 <!-- translations:end -->
 
 Waferscope reads a semiconductor wafer map and tells you three things: **which of nine defect patterns it shows, what yield to expect, and whether to save, review or scrap the wafer.** It adds an expert read of the result in plain language and a chat that knows the scan.
