@@ -20,6 +20,9 @@
   <img alt="License" src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square&labelColor=0a0a0f">
 </p>
 
+<!-- translations:start -->
+<!-- translations:end -->
+
 Waferscope reads a semiconductor wafer map and tells you three things: **which of nine defect patterns it shows, what yield to expect, and whether to save, review or scrap the wafer.** It adds an expert read of the result in plain language and a chat that knows the scan.
 
 Anyone can try it without an account: tap a sample wafer on the [scan page](https://waferscope-two.vercel.app/scan), or drop your own map. The full workspace (batch scans, drawing, history, reports, the expert bot) is for approved accounts.
